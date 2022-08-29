@@ -81,23 +81,16 @@
     (is (= :db.cardinality/one
            (:db/cardinality (attr schema))))))
 
-; TODO: test behaviour when foreign IDs don't refer to attributes in existing schema.
-(deftest test-ref-to-attr-not-in-schema
-  (testing "IllegalArgumentException thrown when file contains attribute referencing attribute not in schema"
-    (csv-to-datahike routes-filename route-cfg *conn*)))
-
-(deftest test-agency-create-dataset
+(defn test-agency-create-dataset [agencies-ds]
   (testing (str "create-dataset handles natural numbers, strings, and blanks in " agencies-filename)
-    (let [agencies-ds (create-dataset agencies-filename)]
-      (is (->> (csv-to-maps agencies-filename)
-           (map (fn [a] (-> (update a :agency/id read-string)
-                            (update :agency/phone #(if (str/blank? %) nil (read-string %))))))
-           (map = (tc/rows agencies-ds :as-maps))
-           (every? identity))))))
+    (is (->> (csv-to-maps agencies-filename)
+             (map (fn [a] (-> (update a :agency/id read-string)
+                              (update :agency/phone #(if (str/blank? %) nil (read-string %))))))
+             (map = (tc/rows agencies-ds :as-maps))
+             (every? identity)))))
 
-(deftest test-agency-csv-to-datahike
-  (let [agencies-ds (create-dataset agencies-filename)
-        agency-attrs (tc/column-names agencies-ds)]
+(defn test-agency-csv-to-datahike [agencies-ds]
+  (let [agency-attrs (tc/column-names agencies-ds)]
     (csv-to-datahike agencies-filename agency-cfg *conn*)
     (testing "Unique identity, unique value, and indexed schema attributes transacted"
       (test-schema-attribute-vals agency-cfg (d/schema @*conn*) (set agency-attrs)))
@@ -109,20 +102,18 @@
                set)
            (set (dataset-for-transact agencies-ds)))))))
 
-(deftest test-route-create-dataset
+(defn test-route-create-dataset [routes-ds]
   (testing "create-dataset handles foreign IDs (references)"
-    (let [routes-ds (create-dataset routes-filename (:ref route-cfg) @*conn*)]
-      (->> (csv-to-maps routes-filename)
-                  (map #(-> (:route/agency-id %)
-                            read-string))
-                  (map = (->> (:route/agency-id routes-ds)
-                              (d/pull-many @*conn* [:agency/id])
-                              (map :agency/id)))
-                  (every? identity)))))
+    (->> (csv-to-maps routes-filename)
+         (map #(-> (:route/agency-id %)
+                   read-string))
+         (map = (->> (:route/agency-id routes-ds)
+                     (d/pull-many @*conn* [:agency/id])
+                     (map :agency/id)))
+         (every? identity))))
 
-(deftest test-route-csv-to-datahike
-  (let [routes-ds (create-dataset routes-filename (:ref route-cfg) @*conn*)
-        route-attrs (tc/column-names routes-ds)]
+(defn test-route-csv-to-datahike [routes-ds]
+  (let [route-attrs (tc/column-names routes-ds)]
     (csv-to-datahike routes-filename route-cfg *conn*)
     (testing "Foreign ID (reference) attributes transacted"
       (test-schema-attribute-vals route-cfg
@@ -132,22 +123,82 @@
       (let [ids (d/q '[:find [?e ...] :where [?e :route/id _]]
                      @*conn*)]
         (= (-> (d/pull-many @*conn* route-attrs ids)
-                             (clean-pulled-entities (keys (:ref route-cfg)))
-                             set)
-                  (->> (dataset-for-transact routes-ds)
-                       (map #(dissoc % :db/id))
-                       set))))))
+               (clean-pulled-entities (keys (:ref route-cfg)))
+               set)
+           (->> (dataset-for-transact routes-ds)
+                (map #(dissoc % :db/id))
+                set))))))
+
+;(defn test-route-trip-csv-to-datahike []
+;  (let [route-trip-maps (map #(update % :route/trip-id read-string)
+;                             (csv-to-maps route-trips-filename))
+;        route-trip-attrs (keys (first route-trip-maps))]
+;    #break (csv-to-datahike route-trips-filename route-trip-cfg *conn*)
+;    (testing "Cardinality-many schema attributes transacted"
+;      (->> (set route-trip-attrs)
+;           (test-schema-attribute-vals route-trip-cfg (d/schema @*conn*))))
+;    (testing "Trip data correctly associated to routes"
+;      (let [route-trips (reduce (fn [m rt]
+;                                  (let [route-id (:route/id rt)]
+;                                    (if (m route-id)
+;                                      (update m route-id #(conj % (:route/trip-id rt)))
+;                                      (assoc m route-id #{(:route/trip-id rt)}))))
+;                                {}
+;                                route-trip-maps)]
+;        (is (= (->> #break (map (fn [rid] [:route/id rid]) (keys route-trips))
+;                    #break (d/pull-many @*conn* [:route/id :route/trip-id])
+;                    (reduce (fn [m rt]
+;                              (->> (set #break (:route/trip-id rt))
+;                                   (assoc m (:route/id rt))))
+;                            {}))
+;               route-trips))))))
+
+(defn test-route-trip-csv-to-datahike []
+  (let [route-trip-maps (map #(update % :route/trip-id read-string)
+                             (csv-to-maps route-trips-filename))
+        route-trip-attrs (keys (first route-trip-maps))]
+    (csv-to-datahike route-trips-filename route-trip-cfg *conn*)
+    (testing "Cardinality-many schema attributes transacted"
+      (->> (set route-trip-attrs)
+           (test-schema-attribute-vals route-trip-cfg (d/schema @*conn*))))
+    (testing "Trip data correctly associated to routes"
+      (let [route-trips (reduce (fn [m rt]
+                                  (let [route-id (:route/id rt)]
+                                    (if (m route-id)
+                                      (update m route-id #(conj % (:route/trip-id rt)))
+                                      (assoc m route-id #{(:route/trip-id rt)}))))
+                                {}
+                                route-trip-maps)]
+        (is (= (->> (map (fn [rid] [:route/id rid]) (keys route-trips))
+                    (d/pull-many @*conn* [:route/id :route/trip-id])
+                    (reduce (fn [m rt]
+                              (->> (set (:route/trip-id rt))
+                                   (assoc m (:route/id rt))))
+                            {}))
+               route-trips))))))
+
+(deftest test-agency-route-trip
+  (d/delete-database datahike-cfg)
+  (d/create-database datahike-cfg)
+  (binding [*conn* (d/connect datahike-cfg)]
+    (let [agencies-ds (create-dataset agencies-filename)
+          routes-ds (create-dataset routes-filename (:ref route-cfg) @*conn*)]
+      (test-agency-create-dataset agencies-ds)
+      (test-agency-csv-to-datahike agencies-ds)
+      (test-route-create-dataset routes-ds)
+      (test-route-csv-to-datahike routes-ds)
+      (test-route-trip-csv-to-datahike))))
 
 (defn test-stop-create-dataset [stops-ds stop-maps]
   (let [keys-of-interest #{:stop/id :stop/name :stop/lon :stop/lat}]
     (testing "create-dataset handles floats and more strings correctly"
       (is (->> (map #(-> (select-keys % keys-of-interest)
-                                (update :stop/lat read-string)
-                                (update :stop/lon read-string))
-                           stop-maps)
-                      (map = (->> (tc/rows stops-ds :as-maps)
-                                  (map #(select-keys % keys-of-interest))))
-                      (every? identity))))))
+                         (update :stop/lat read-string)
+                         (update :stop/lon read-string))
+                    stop-maps)
+               (map = (->> (tc/rows stops-ds :as-maps)
+                           (map #(select-keys % keys-of-interest))))
+               (every? identity))))))
 
 (defn test-stop-csv-to-datahike [stops-ds stop-maps]
   (let [stop-attrs (tc/column-names stops-ds)]
@@ -184,48 +235,14 @@
                            stop-maps)))))))))
 
 (deftest test-stop
-  (let [stops-ds (create-dataset stops-filename (:ref stop-cfg) @*conn*)
-        stop-maps (csv-to-maps stops-filename)]
-    (test-stop-create-dataset stops-ds stop-maps)
-    (test-stop-csv-to-datahike stops-ds stop-maps)))
-
-(deftest test-route-trip-csv-to-datahike
-  (let [route-trip-maps (map #(update % :route/trip-id read-string)
-                             (csv-to-maps route-trips-filename))
-        route-trip-attrs (keys (first route-trip-maps))]
-    (csv-to-datahike route-trips-filename route-trip-cfg *conn*)
-    (testing "Cardinality-many schema attributes transacted"
-      (->> (set route-trip-attrs)
-           (test-schema-attribute-vals route-trip-cfg (d/schema @*conn*))))
-    (testing "Trip data correctly associated to routes"
-      (let [route-trips (reduce (fn [m rt]
-                                         (let [route-id (:route/id rt)]
-                                           (if (m route-id)
-                                             (update m route-id #(conj % (:route/trip-id rt)))
-                                             (assoc m route-id #{(:route/trip-id rt)}))))
-                                       {}
-                                       route-trip-maps)]
-        (is (= (->> (map (fn [rid] [:route/id rid]) (keys route-trips))
-                              (d/pull-many @*conn* [:route/id :route/trip-id])
-                              (reduce (fn [m rt]
-                                        (->> (set (:route/trip-id rt))
-                                             (assoc m (:route/id rt))))
-                                      {}))
-           route-trips))))))
-
-; TODO
-; 2. tuples
-(defn test-ns-hook []
   (d/delete-database datahike-cfg)
   (d/create-database datahike-cfg)
   (binding [*conn* (d/connect datahike-cfg)]
-    (test-agency-create-dataset)
-    (test-agency-csv-to-datahike)
-    (test-route-create-dataset)
-    (test-route-csv-to-datahike)
     (csv-to-datahike levels-filename level-cfg *conn*)
-    (test-stop)
-    (test-route-trip-csv-to-datahike)))
+    (let [stops-ds (create-dataset stops-filename (:ref stop-cfg) @*conn*)
+          stop-maps (csv-to-maps stops-filename)]
+      (test-stop-create-dataset stops-ds stop-maps)
+      (test-stop-csv-to-datahike stops-ds stop-maps))))
 
 (comment
   (require '[clojure.test :refer [run-tests]])
