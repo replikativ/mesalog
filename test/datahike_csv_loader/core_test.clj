@@ -261,7 +261,7 @@
                                                 {}
                                                 %)))
           eids (->> (d/q '[:find ?e :where [?e :shape/id _]]
-                               @*conn*)
+                         @*conn*)
                     (map first)
                     sort)]
       (is (= (->> (d/pull-many @*conn* '[*] eids)

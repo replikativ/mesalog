@@ -145,11 +145,11 @@
       (throw (IllegalArgumentException. "Each file is allowed at most one cardinality-many attribute"))))
   (let [{:keys [id tuple]} cols-cfg
         [composite-tuples other-tuples] (reduce (fn [tuples k]
-                                                         (if (k id)
-                                                           (update tuples 0 #(conj % k))
-                                                           (update tuples 1 #(conj % k))))
-                                                       ['() '()]
-                                                       (keys tuple))
+                                                  (if (k id)
+                                                    (update tuples 0 #(conj % k))
+                                                    (update tuples 1 #(conj % k))))
+                                                ['() '()]
+                                                (keys tuple))
         composite-tuple-schemas (map #(-> (column-schema-attrs cols-cfg %)
                                           (assoc :db/tupleAttrs (% tuple)))
                                      composite-tuples)
