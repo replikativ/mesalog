@@ -108,50 +108,112 @@
                        (and (some? ref-cols)
                             (pos? (count ref-cols))) (dataset-with-ref-cols ref-cols db))))
 
-(defn- column-schema-attributes [cfg col-info]
-  (let [{:keys [id unique index ref cardinality-many]} cfg
-        {col-name :name, col-datatype :datatype} col-info]
-    (cond-> {:db/ident       col-name
-             :db/cardinality (if (col-name cardinality-many)
-                               :db.cardinality/many
-                               :db.cardinality/one)
-             :db/valueType  (if (col-name ref)
-                              :db.type/ref
-                              (tc-to-datahike-types col-datatype))}
+(defn- column-info-maps [ds cols]
+  (-> (tc/select-columns ds cols)
+      get-column-info
+      (tc/rows :as-maps)))
+
+(defn- required-schema-attrs
+  ([cfg col-name] (required-schema-attrs cfg col-name nil))
+  ([cfg col-name col-dtype] (let [{:keys [ref cardinality-many tuple]} cfg]
+                              {:db/ident          col-name
+                               :db/cardinality    (if (col-name cardinality-many)
+                                                    :db.cardinality/many
+                                                    :db.cardinality/one)
+                               :db/valueType      (cond
+                                                    (col-name ref) :db.type/ref
+                                                    (col-name tuple) :db.type/tuple
+                                                    :else (tc-to-datahike-types col-dtype))})))
+
+(defn- optional-schema-attrs [cfg col-name required-attrs]
+  (let [{:keys [id unique index]} cfg]
+    (cond-> required-attrs
       (col-name unique) (assoc :db/unique :db.unique/value)
       ;; unique identity overrides unique value if both are specified
       (col-name id) (assoc :db/unique :db.unique/identity)
       ;; :db/index true is not recommended for unique identity attribute
       (and (col-name index) (not (col-name id))) (assoc :db/index true))))
 
+(defn- column-schema-attrs
+  ([cfg col-name] (column-schema-attrs cfg col-name nil))
+  ([cfg col-name col-dtype] (->> (required-schema-attrs cfg col-name col-dtype)
+                                 (optional-schema-attrs cfg col-name))))
+
 (defn extract-schema [schema cols-cfg ds]
   (if-let [cardinality-many-attrs (:cardinality-many cols-cfg)]
     (when (> (count cardinality-many-attrs) 1)
       (throw (IllegalArgumentException. "Each file is allowed at most one cardinality-many attribute"))))
-  (let [include-cols (-> (filter #(% schema) (tc/column-names ds))
-                         (conj :db/id)
-                         set
-                         complement)]
-    (mapv #(column-schema-attributes cols-cfg %)
-          (-> (tc/select-columns ds include-cols)
-              get-column-info
-              (tc/rows :as-maps)))))
+  (let [{:keys [id tuple]} cols-cfg
+        [composite-tuples other-tuples] (reduce (fn [tuples k]
+                                                         (if (k id)
+                                                           (update tuples 0 #(conj % k))
+                                                           (update tuples 1 #(conj % k))))
+                                                       ['() '()]
+                                                       (keys tuple))
+        composite-tuple-schemas (map #(-> (column-schema-attrs cols-cfg %)
+                                          (assoc :db/tupleAttrs (% tuple)))
+                                     composite-tuples)
+        other-tuple-schemas (map (fn [k]
+                                   (let [tuple-dtypes (->> (column-info-maps ds (k tuple))
+                                                           (mapv #(tc-to-datahike-types (:datatype %))))
+                                         tuple-dtypes-count (count (set tuple-dtypes))
+                                         tuple-schema (column-schema-attrs cols-cfg k)]
+                                     (if (> tuple-dtypes-count 1)
+                                       (assoc tuple-schema :db/tupleTypes tuple-dtypes)
+                                       (assoc tuple-schema :db/tupleType (first tuple-dtypes)))))
+                                 other-tuples)
+        tuple-cols-to-drop (mapcat #(% tuple) other-tuples)
+        include-cols (complement (-> (filter #(% schema) (tc/column-names ds))
+                                     (into tuple-cols-to-drop)
+                                     (conj :db/id)
+                                     set))]
+    (->> (column-info-maps ds include-cols)
+         (mapv #(column-schema-attrs cols-cfg (:name %) (:datatype %)))
+         (concat composite-tuple-schemas other-tuple-schemas))))
 
-(defn write-schema [conn cols-cfg ds]
-  (->> (extract-schema (d/schema @conn) cols-cfg ds)
-       (d/transact conn)))
+(defn- merge-entity-rows [rows merge-attr]
+  (reduce (fn [vals row]
+            (-> (merge vals (dissoc row merge-attr))
+                (update merge-attr #(conj % (merge-attr row)))))
+          (update (first rows) merge-attr vector)
+          (rest rows)))
 
-(defn dataset-for-transact [ds]
-  (mapv #(-> (fn [m k v]
-               (if (some? v)
-                 (conj! m [k v])
-                 m))
-             (reduce-kv (transient {}) %)
-             persistent!)
-        (tc/rows ds :as-maps)))
+(defn dataset-for-transact
+  ([ds]
+   (dataset-for-transact ds nil []))
+  ([ds cfg tuple-names]
+   (let [ds-to-tx (mapv (fn [row]
+                          (let [nils-removed (reduce-kv (fn [m k v]
+                                                          (if (some? v)
+                                                            (conj! m [k v])
+                                                            m))
+                                                        (transient {})
+                                                        row)]
+                            (persistent! (reduce (fn [row tname]
+                                                   (let [tuple-cols (tname (:tuple cfg))
+                                                         tval (mapv row tuple-cols)]
+                                                     (if (some? (reduce #(or %1 %2) tval))
+                                                       (reduce (fn [m t] (dissoc! m t))
+                                                               (assoc! row tname tval)
+                                                               tuple-cols)
+                                                       row)))
+                                                 nils-removed
+                                                 tuple-names))))
+                        (tc/rows ds :as-maps))]
+     (if (:cardinality-many cfg)
+       (let [id-attr (first (:id cfg))
+             merge-attr (first (:cardinality-many cfg))]
+         (->> (vals (group-by id-attr ds-to-tx))
+              (map #(merge-entity-rows % merge-attr))))
+       ds-to-tx))))
 
 (defn csv-to-datahike [csv-file csv-cfg conn]
-  (let [ds (create-dataset csv-file (:ref csv-cfg) @conn)]
-    (write-schema conn csv-cfg ds)
-    (->> (dataset-for-transact ds)
+  (let [ds (create-dataset csv-file (:ref csv-cfg) @conn)
+        data-schema (extract-schema (d/schema @conn) csv-cfg ds)]
+    (d/transact conn data-schema)
+    (->> (filter #(and (= (:db/valueType %) :db.type/tuple)
+                       (or (:db/tupleType %) (:db/tupleTypes %)))
+                 data-schema)
+         (map :db/ident)
+         (dataset-for-transact ds csv-cfg)
          (d/transact conn))))

@@ -21,6 +21,7 @@
 (def levels-filename (str resources-folder "/levels.csv"))
 (def stops-filename (str resources-folder "/stops.csv"))
 (def route-trips-filename (str resources-folder "/route_trips.csv"))
+(def shapes-filename (str resources-folder "/shapes.csv"))
 
 (def ^:private agency-cfg {:id      #{:agency/id}
                            :unique  #{:agency/name}
@@ -34,6 +35,12 @@
                          :index #{:stop/name}})
 (def ^:private route-trip-cfg {:id   #{:route/id}
                                :cardinality-many  #{:route/trip-id}})
+(def ^:private shape-cfg-1 {:id   #{:shape/id}
+                            :tuple {:shape/pt-lat-lon-sequence [:shape/pt-lat :shape/pt-lon :shape/pt-sequence]}
+                            :cardinality-many  #{:shape/pt-lat-lon-sequence}})
+(def ^:private shape-cfg-2 {:id   #{:shape/id-pt-sequence}
+                            :tuple {:shape/id-pt-sequence [:shape/id :shape/pt-sequence]
+                                    :shape/pt-lat-lon [:shape/pt-lat :shape/pt-lon]}})
 
 (def ^:dynamic *conn*)
 
@@ -227,6 +234,40 @@
       (test-stop-create-dataset stops-ds stop-maps)
       (test-stop-csv-to-datahike stops-ds stop-maps))))
 
-(comment
-  (require '[clojure.test :refer [run-tests]])
-  (run-tests))
+(deftest test-heterogeneous-tuple-csv-to-datahike
+  (d/delete-database datahike-cfg)
+  (d/create-database datahike-cfg)
+  (binding [*conn* (d/connect datahike-cfg)]
+    (let [shapes-from-csv (->> (with-open [reader (io/reader shapes-filename)]
+                                 (charred/read-csv reader))
+                               rest
+                               (map #(map read-string %)))
+          lookup-refs (->> (distinct (map first shapes-from-csv))
+                           (map (fn [i] [:shape/id i])))]
+      (csv-to-datahike shapes-filename shape-cfg-1 *conn*)
+      (is (= (->> (group-by first shapes-from-csv)
+                  (map (fn [[k v]] (map rest v))))
+             (->> (d/pull-many @*conn* '[*] lookup-refs)
+                  (map :shape/pt-lat-lon-sequence)))))))
+
+(deftest test-composite-and-homogeneous-tuples-csv-to-datahike
+  (d/delete-database datahike-cfg)
+  (d/create-database datahike-cfg)
+  (binding [*conn* (d/connect datahike-cfg)]
+    (csv-to-datahike shapes-filename shape-cfg-2 *conn*)
+    (let [shapes-from-csv (->> (csv-to-maps shapes-filename)
+                               (map #(reduce-kv (fn [m k v]
+                                                  (assoc m k (read-string v)))
+                                                {}
+                                                %)))
+          eids (->> (d/q '[:find ?e :where [?e :shape/id _]]
+                               @*conn*)
+                    (map first)
+                    sort)]
+      (is (= (->> (d/pull-many @*conn* '[*] eids)
+                  (map #(dissoc % :db/id)))
+             (map #(-> (assoc % :shape/id-pt-sequence [(:shape/id %) (:shape/pt-sequence %)])
+                       (assoc :shape/pt-lat-lon [(:shape/pt-lat %) (:shape/pt-lon %)])
+                       (dissoc :shape/pt-lat)
+                       (dissoc :shape/pt-lon))
+                  shapes-from-csv))))))
