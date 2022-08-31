@@ -1,0 +1,3 @@
+#kaocha/v1 {:tests [{:id :clj
+                     :ns-patterns ["datahike-csv-loader.*-test"]}]
+            :reporter kaocha.report/documentation}
