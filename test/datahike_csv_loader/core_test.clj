@@ -16,12 +16,12 @@
 
 ;; tablecloth claims to work with input stream arguments, but that doesn't seem to be true...
 (def ^:private resources-folder "resources")
-(def agencies-filename (str resources-folder "/agencies.csv"))
-(def routes-filename (str resources-folder "/routes.csv"))
-(def levels-filename (str resources-folder "/levels.csv"))
-(def stops-filename (str resources-folder "/stops.csv"))
-(def route-trips-filename (str resources-folder "/route_trips.csv"))
-(def shapes-filename (str resources-folder "/shapes.csv"))
+(def ^:private agencies-filename (str resources-folder "/agencies.csv"))
+(def ^:private routes-filename (str resources-folder "/routes.csv"))
+(def ^:private levels-filename (str resources-folder "/levels.csv"))
+(def ^:private stops-filename (str resources-folder "/stops.csv"))
+(def ^:private route-trips-filename (str resources-folder "/route_trips.csv"))
+(def ^:private shapes-filename (str resources-folder "/shapes.csv"))
 
 (def ^:private agency-cfg {:id      #{:agency/id}
                            :unique  #{:agency/name}
@@ -44,18 +44,18 @@
 
 (def ^:dynamic *conn*)
 
-(defn csv-to-maps [filename]
+(defn- csv-to-maps [filename]
   (let [csv (with-open [reader (io/reader filename)]
               (charred/read-csv reader))
         cols (map keyword (first csv))]
     (map #(zipmap cols %) (rest csv))))
 
-(defn unwrap-refs [e ref-attrs]
+(defn- unwrap-refs [e ref-attrs]
   (reduce (fn [e a] (update e a :db/id))
           e
           ref-attrs))
 
-(defn clean-pulled-entities [entities ref-attrs]
+(defn- clean-pulled-entities [entities ref-attrs]
   (map #(-> (dissoc % :db/id)
             (unwrap-refs ref-attrs))
        entities))
