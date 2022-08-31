@@ -94,8 +94,9 @@
   (let [cols-info (get-column-info ds)
         self-ref-cols (filter-ref-cols ref-cols (set (:name cols-info)))
         schema (d/schema db)
-        foreign-ref-cols (when (< (count self-ref-cols) (count ref-cols))
-                           (filter-ref-cols ref-cols schema))]
+        foreign-ref-cols (->> (filter (fn [[k v]] (not (k self-ref-cols)))
+                                      ref-cols)
+                              (into {}))]
     (if (or (pos? (count self-ref-cols))
             (pos? (count foreign-ref-cols)))
       (handle-ref-cols ds cols-info self-ref-cols foreign-ref-cols db)

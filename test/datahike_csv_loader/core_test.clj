@@ -129,30 +129,6 @@
                 (map #(dissoc % :db/id))
                 set))))))
 
-;(defn test-route-trip-csv-to-datahike []
-;  (let [route-trip-maps (map #(update % :route/trip-id read-string)
-;                             (csv-to-maps route-trips-filename))
-;        route-trip-attrs (keys (first route-trip-maps))]
-;    #break (csv-to-datahike route-trips-filename route-trip-cfg *conn*)
-;    (testing "Cardinality-many schema attributes transacted"
-;      (->> (set route-trip-attrs)
-;           (test-schema-attribute-vals route-trip-cfg (d/schema @*conn*))))
-;    (testing "Trip data correctly associated to routes"
-;      (let [route-trips (reduce (fn [m rt]
-;                                  (let [route-id (:route/id rt)]
-;                                    (if (m route-id)
-;                                      (update m route-id #(conj % (:route/trip-id rt)))
-;                                      (assoc m route-id #{(:route/trip-id rt)}))))
-;                                {}
-;                                route-trip-maps)]
-;        (is (= (->> #break (map (fn [rid] [:route/id rid]) (keys route-trips))
-;                    #break (d/pull-many @*conn* [:route/id :route/trip-id])
-;                    (reduce (fn [m rt]
-;                              (->> (set #break (:route/trip-id rt))
-;                                   (assoc m (:route/id rt))))
-;                            {}))
-;               route-trips))))))
-
 (defn test-route-trip-csv-to-datahike []
   (let [route-trip-maps (map #(update % :route/trip-id read-string)
                              (csv-to-maps route-trips-filename))
@@ -181,13 +157,20 @@
   (d/delete-database datahike-cfg)
   (d/create-database datahike-cfg)
   (binding [*conn* (d/connect datahike-cfg)]
-    (let [agencies-ds (create-dataset agencies-filename)
-          routes-ds (create-dataset routes-filename (:ref route-cfg) @*conn*)]
+    (let [agencies-ds (create-dataset agencies-filename)]
       (test-agency-create-dataset agencies-ds)
       (test-agency-csv-to-datahike agencies-ds)
-      (test-route-create-dataset routes-ds)
-      (test-route-csv-to-datahike routes-ds)
-      (test-route-trip-csv-to-datahike))))
+      (let [routes-ds (create-dataset routes-filename (:ref route-cfg) @*conn*)]
+        (test-route-create-dataset routes-ds)
+        (test-route-csv-to-datahike routes-ds)
+        (test-route-trip-csv-to-datahike)))))
+
+(deftest test-refs-in-schema
+  (testing "IllegalArgumentException is thrown when attribute not present in schema is referenced"
+    (d/delete-database datahike-cfg)
+    (d/create-database datahike-cfg)
+    (binding [*conn* (d/connect datahike-cfg)]
+      (is (thrown? IllegalArgumentException (csv-to-datahike routes-filename route-cfg *conn*))))))
 
 (defn test-stop-create-dataset [stops-ds stop-maps]
   (let [keys-of-interest #{:stop/id :stop/name :stop/lon :stop/lat}]
