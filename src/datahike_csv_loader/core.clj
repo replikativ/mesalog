@@ -139,7 +139,7 @@
   ([cfg col-name col-dtype] (->> (required-schema-attrs cfg col-name col-dtype)
                                  (optional-schema-attrs cfg col-name))))
 
-(defn extract-schema [schema cols-cfg ds]
+(defn- extract-schema [schema cols-cfg ds]
   (if-let [cardinality-many-attrs (:cardinality-many cols-cfg)]
     (when (> (count cardinality-many-attrs) 1)
       (throw (IllegalArgumentException. "Each file is allowed at most one cardinality-many attribute"))))
@@ -178,7 +178,7 @@
           (update (first rows) merge-attr vector)
           (rest rows)))
 
-(defn dataset-for-transact
+(defn- dataset-for-transact
   ([ds]
    (dataset-for-transact ds nil []))
   ([ds cfg tuple-names]
