@@ -207,13 +207,13 @@
               (map #(merge-entity-rows % merge-attr))))
        ds-to-tx))))
 
-(defn csv-to-datahike [csv-file csv-cfg conn]
-  (let [ds (create-dataset csv-file (:ref csv-cfg) @conn)
-        data-schema (extract-schema (d/schema @conn) csv-cfg ds)]
+(defn csv-to-datahike [csv-file cols-cfg conn]
+  (let [ds (create-dataset csv-file (:ref cols-cfg) @conn)
+        data-schema (extract-schema (d/schema @conn) cols-cfg ds)]
     (d/transact conn data-schema)
     (->> (filter #(and (= (:db/valueType %) :db.type/tuple)
                        (or (:db/tupleType %) (:db/tupleTypes %)))
                  data-schema)
          (map :db/ident)
-         (dataset-for-transact ds csv-cfg)
+         (dataset-for-transact ds cols-cfg)
          (d/transact conn))))
