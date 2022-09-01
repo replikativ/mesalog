@@ -91,8 +91,10 @@
 (defn test-agency-create-dataset [agencies-ds]
   (testing (str "create-dataset handles natural numbers, strings, and blanks in " agencies-filename)
     (is (->> (csv-to-maps agencies-filename)
-             (map (fn [a] (-> (update a :agency/id read-string)
-                              (update :agency/phone #(if (str/blank? %) nil (read-string %))))))
+             (map (fn [a]
+                    (let [phone-fn #(if (str/blank? %) nil (read-string %))]
+                      (-> (update a :agency/id read-string)
+                          (update :agency/phone phone-fn)))))
              (map = (tc/rows agencies-ds :as-maps))
              (every? identity)))))
 
@@ -146,13 +148,14 @@
            (test-schema-attribute-vals route-trip-cfg (d/schema @*conn*))))
     (testing "Trip data correctly associated to routes"
       (let [route-trips (reduce (fn [m rt]
-                                  (let [route-id (:route/id rt)]
-                                    (if (m route-id)
-                                      (update m route-id #(conj % (:route/trip-id rt)))
-                                      (assoc m route-id #{(:route/trip-id rt)}))))
+                                  (let [{:route/keys [id trip-id]} rt]
+                                    (if (m id)
+                                      (update m id #(conj % trip-id))
+                                      (assoc m id #{trip-id}))))
                                 {}
                                 route-trip-maps)]
-        (is (= (->> (map (fn [rid] [:route/id rid]) (keys route-trips))
+        (is (= (->> (map (fn [rid] [:route/id rid])
+                         (keys route-trips))
                     (d/pull-many @*conn* [:route/id :route/trip-id])
                     (reduce (fn [m rt]
                               (->> (set (:route/trip-id rt))
