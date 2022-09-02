@@ -102,7 +102,7 @@
       (handle-ref-cols ds cols-info self-ref-cols foreign-ref-cols db)
       ds)))
 
-(defn create-dataset
+(defn ^:no-doc create-dataset
   ([csv] (create-dataset csv nil nil))
   ([csv ref-cols db] (cond-> (tc/dataset csv {:key-fn keyword})
                        (and (some? ref-cols)
@@ -139,7 +139,7 @@
   ([cfg col-name col-dtype] (->> (required-schema-attrs cfg col-name col-dtype)
                                  (optional-schema-attrs cfg col-name))))
 
-(defn extract-schema [db-schema cols-cfg ds]
+(defn ^:no-doc extract-schema [db-schema cols-cfg ds]
   (if-let [cardinality-many-attrs (:cardinality-many cols-cfg)]
     (when (> (count cardinality-many-attrs) 1)
       (throw (IllegalArgumentException. "Each file is allowed at most one cardinality-many attribute"))))
@@ -178,7 +178,7 @@
           (update (first rows) merge-attr vector)
           (rest rows)))
 
-(defn dataset-for-transact
+(defn ^:no-doc dataset-for-transact
   ([ds]
    (dataset-for-transact ds nil []))
   ([ds cfg tuple-names]
@@ -207,7 +207,21 @@
               (map #(merge-entity-rows % merge-attr))))
        ds-to-tx))))
 
-(defn csv-to-datahike [conn csv-file cols-cfg]
+(defn csv-to-datahike
+  "Reads, parses, and loads data from CSV file named `csv-file` into a Datahike database via `conn`,
+  as specified in options map `cols-cfg`.
+
+  `cols-cfg` expects a set of attribute idents as the value of each key, except `:ref` and `:tuple`.
+  Available options are:
+  | Key                 | Description   |
+  |---------------------|---------------|
+  | `:unique-id`        | `:db/unique` value `:db.unique/identity`
+  | `:unique-val`       | `:db/unique` value `:db.unique/value`
+  | `:index`            | `:db/index` value `true`
+  | `:cardinality-many` | `:db/cardinality` value `:db.cardinality/many`
+  | `:ref`              | Map of `:db/valueType` `:db.type/ref` attributes to referenced attribute idents
+  | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attributes to constituent column names (keywordized)"
+  [conn csv-file cols-cfg]
   (let [ds (create-dataset csv-file (:ref cols-cfg) @conn)
         data-schema (extract-schema (d/schema @conn) cols-cfg ds)]
     (d/transact conn data-schema)
