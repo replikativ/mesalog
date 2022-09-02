@@ -207,7 +207,7 @@
               (map #(merge-entity-rows % merge-attr))))
        ds-to-tx))))
 
-(defn csv-to-datahike [csv-file cols-cfg conn]
+(defn csv-to-datahike [conn csv-file cols-cfg]
   (let [ds (create-dataset csv-file (:ref cols-cfg) @conn)
         data-schema (extract-schema (d/schema @conn) cols-cfg ds)]
     (d/transact conn data-schema)
