@@ -139,7 +139,7 @@
   ([cfg col-name col-dtype] (->> (required-schema-attrs cfg col-name col-dtype)
                                  (optional-schema-attrs cfg col-name))))
 
-(defn extract-schema [schema cols-cfg ds]
+(defn extract-schema [db-schema cols-cfg ds]
   (if-let [cardinality-many-attrs (:cardinality-many cols-cfg)]
     (when (> (count cardinality-many-attrs) 1)
       (throw (IllegalArgumentException. "Each file is allowed at most one cardinality-many attribute"))))
@@ -163,7 +163,7 @@
                                        (assoc tuple-schema :db/tupleType (first tuple-dtypes)))))
                                  other-tuples)
         tuple-cols-to-drop (mapcat #(% tuple) other-tuples)
-        include-cols (complement (-> (filter #(% schema) (tc/column-names ds))
+        include-cols (complement (-> (filter #(% db-schema) (tc/column-names ds))
                                      (into tuple-cols-to-drop)
                                      (conj :db/id)
                                      set))]
