@@ -201,7 +201,7 @@
                                                  tuple-names))))
                         (tc/rows ds :as-maps))]
      (if (:cardinality-many cfg)
-       (let [id-attr (first (:id cfg))
+       (let [id-attr (first (:unique-id cfg))
              merge-attr (first (:cardinality-many cfg))]
          (->> (vals (group-by id-attr ds-to-tx))
               (map #(merge-entity-rows % merge-attr))))
