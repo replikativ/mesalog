@@ -213,6 +213,7 @@
 
   `cols-cfg` expects a set of attribute idents as the value of each key, except `:ref` and `:tuple`.
   Available options are:
+
   | Key                 | Description   |
   |---------------------|---------------|
   | `:unique-id`        | `:db/unique` value `:db.unique/identity`
@@ -221,6 +222,7 @@
   | `:cardinality-many` | `:db/cardinality` value `:db.cardinality/many`
   | `:ref`              | Map of `:db/valueType` `:db.type/ref` attributes to referenced attribute idents
   | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attributes to constituent column names (keywordized)"
+
   [conn csv-file cols-cfg]
   (let [ds (create-dataset csv-file (:ref cols-cfg) @conn)
         data-schema (extract-schema (d/schema @conn) cols-cfg ds)]
