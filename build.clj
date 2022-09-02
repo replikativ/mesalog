@@ -2,7 +2,8 @@
   (:refer-clojure :exclude [test])
   (:require [borkdude.gh-release-artifact :as gh]
             [clojure.tools.build.api :as b]
-            [deps-deploy.deps-deploy :as dd])
+            [deps-deploy.deps-deploy :as dd]
+            [clojure.string :as str])
   (:import (clojure.lang ExceptionInfo)))
 
 (def lib 'io.replikativ/datahike-csv-loader)
@@ -15,13 +16,24 @@
 (defn clean [_]
   (b/delete {:path "target"}))
 
+(defn sha
+  [{:keys [dir path] :or {dir "."}}]
+  (-> {:command-args (cond-> ["git" "rev-parse" "HEAD"]
+                       path (conj "--" path))
+       :dir (.getPath (b/resolve-path dir))
+       :out :capture}
+      b/process
+      :out
+      str/trim))
+
 (defn jar [_]
   (b/write-pom {:class-dir class-dir
                 :src-pom "./template/pom.xml"
                 :lib lib
                 :version version
                 :basis basis
-                :src-dirs ["src"]})
+                :src-dirs ["src"]
+                :scm {:tag (sha nil)}})
   (b/copy-dir {:src-dirs ["src"]
                :target-dir class-dir})
   (b/jar {:class-dir class-dir

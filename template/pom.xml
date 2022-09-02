@@ -15,6 +15,6 @@
   <scm>
     <url>https://github.com/replikativ/datahike-csv-loader</url>
     <connection>scm:git:git://github.com/replikativ/datahike-csv-loader.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/io.replikativ/datahike-csv-loader.git</developerConnection>
+    <developerConnection>scm:git:ssh://git@github.com/replikativ/datahike-csv-loader.git</developerConnection>
   </scm>
 </project>
