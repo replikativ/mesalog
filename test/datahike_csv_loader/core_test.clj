@@ -100,7 +100,7 @@
 
 (defn test-agency-csv-to-datahike [agencies-ds]
   (let [agency-attrs (tc/column-names agencies-ds)]
-    (csv-to-datahike *conn* agencies-filename agency-cfg)
+    (load-csv *conn* agencies-filename agency-cfg)
     (testing "Unique identity, unique value, and indexed schema attributes transacted"
       (test-schema-attribute-vals agency-cfg (d/schema @*conn*) (set agency-attrs)))
     (testing "Agency data loaded correctly"
@@ -123,7 +123,7 @@
 
 (defn test-route-csv-to-datahike [routes-ds]
   (let [route-attrs (tc/column-names routes-ds)]
-    (csv-to-datahike *conn* routes-filename route-cfg)
+    (load-csv *conn* routes-filename route-cfg)
     (testing "Foreign ID (reference) attributes transacted"
       (test-schema-attribute-vals route-cfg
                                   (d/schema @*conn*)
@@ -142,7 +142,7 @@
   (let [route-trip-maps (map #(update % :route/trip-id read-string)
                              (csv-to-maps route-trips-filename))
         route-trip-attrs (keys (first route-trip-maps))]
-    (csv-to-datahike *conn* route-trips-filename route-trip-cfg)
+    (load-csv *conn* route-trips-filename route-trip-cfg)
     (testing "Cardinality-many schema attributes transacted"
       (->> (set route-trip-attrs)
            (test-schema-attribute-vals route-trip-cfg (d/schema @*conn*))))
@@ -180,7 +180,7 @@
     (d/delete-database datahike-cfg)
     (d/create-database datahike-cfg)
     (binding [*conn* (d/connect datahike-cfg)]
-      (is (thrown? IllegalArgumentException (csv-to-datahike *conn* routes-filename route-cfg))))))
+      (is (thrown? IllegalArgumentException (load-csv *conn* routes-filename route-cfg))))))
 
 (defn test-stop-create-dataset [stops-ds stop-maps]
   (let [keys-of-interest #{:stop/id :stop/name :stop/lon :stop/lat}]
@@ -195,7 +195,7 @@
 
 (defn test-stop-csv-to-datahike [stops-ds stop-maps]
   (let [stop-attrs (tc/column-names stops-ds)]
-    (csv-to-datahike *conn* stops-filename stop-cfg)
+    (load-csv *conn* stops-filename stop-cfg)
     (testing "Schema attributes correctly transacted"
       (test-schema-attribute-vals stop-cfg
                                   (d/schema @*conn*)
@@ -231,7 +231,7 @@
   (d/delete-database datahike-cfg)
   (d/create-database datahike-cfg)
   (binding [*conn* (d/connect datahike-cfg)]
-    (csv-to-datahike *conn* levels-filename level-cfg)
+    (load-csv *conn* levels-filename level-cfg)
     (let [stops-ds (create-dataset stops-filename (:ref stop-cfg) @*conn*)
           stop-maps (csv-to-maps stops-filename)]
       (test-stop-create-dataset stops-ds stop-maps)
@@ -247,7 +247,7 @@
                                (map #(map read-string %)))
           lookup-refs (->> (distinct (map first shapes-from-csv))
                            (map (fn [i] [:shape/id i])))]
-      (csv-to-datahike *conn* shapes-filename shape-cfg-1)
+      (load-csv *conn* shapes-filename shape-cfg-1)
       (is (= (->> (group-by first shapes-from-csv)
                   (map (fn [[k v]] (map rest v))))
              (->> (d/pull-many @*conn* '[*] lookup-refs)
@@ -257,7 +257,7 @@
   (d/delete-database datahike-cfg)
   (d/create-database datahike-cfg)
   (binding [*conn* (d/connect datahike-cfg)]
-    (csv-to-datahike *conn* shapes-filename shape-cfg-2)
+    (load-csv *conn* shapes-filename shape-cfg-2)
     (let [shapes-from-csv (->> (csv-to-maps shapes-filename)
                                (map #(reduce-kv (fn [m k v]
                                                   (assoc m k (read-string v)))

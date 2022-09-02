@@ -207,7 +207,7 @@
               (map #(merge-entity-rows % merge-attr))))
        ds-to-tx))))
 
-(defn csv-to-datahike
+(defn load-csv
   "Reads, parses, and loads data from CSV file named `csv-file` into a Datahike database via `conn`,
   as specified in options map `cols-cfg`.
 
