@@ -126,13 +126,13 @@
                                                     :else (tc-to-datahike-types col-dtype))})))
 
 (defn- optional-schema-attrs [cfg col-name required-attrs]
-  (let [{:keys [id unique index]} cfg]
+  (let [{:keys [unique-id unique-val index]} cfg]
     (cond-> required-attrs
-      (col-name unique) (assoc :db/unique :db.unique/value)
+      (col-name unique-val) (assoc :db/unique :db.unique/value)
       ;; unique identity overrides unique value if both are specified
-      (col-name id) (assoc :db/unique :db.unique/identity)
+      (col-name unique-id) (assoc :db/unique :db.unique/identity)
       ;; :db/index true is not recommended for unique identity attribute
-      (and (col-name index) (not (col-name id))) (assoc :db/index true))))
+      (and (col-name index) (not (col-name unique-id))) (assoc :db/index true))))
 
 (defn- column-schema-attrs
   ([cfg col-name] (column-schema-attrs cfg col-name nil))
@@ -143,9 +143,9 @@
   (if-let [cardinality-many-attrs (:cardinality-many cols-cfg)]
     (when (> (count cardinality-many-attrs) 1)
       (throw (IllegalArgumentException. "Each file is allowed at most one cardinality-many attribute"))))
-  (let [{:keys [id tuple]} cols-cfg
+  (let [{:keys [unique-id tuple]} cols-cfg
         [composite-tuples other-tuples] (reduce (fn [tuples k]
-                                                  (if (k id)
+                                                  (if (k unique-id)
                                                     (update tuples 0 #(conj % k))
                                                     (update tuples 1 #(conj % k))))
                                                 ['() '()]

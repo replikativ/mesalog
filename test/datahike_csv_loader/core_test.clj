@@ -9,7 +9,7 @@
             [tablecloth.api :as tc]))
 
 (def ^:private datahike-cfg {:store {:backend :mem
-                                     :id "test-db"}
+                                     :unique-id "test-db"}
                              :index :datahike.index/persistent-set
                              :attribute-refs? false
                              :name "test-db"})
@@ -23,22 +23,22 @@
 (def ^:private route-trips-filename (str resources-folder "/route_trips.csv"))
 (def ^:private shapes-filename (str resources-folder "/shapes.csv"))
 
-(def ^:private agency-cfg {:id      #{:agency/id}
-                           :unique  #{:agency/name}
+(def ^:private agency-cfg {:unique-id      #{:agency/id}
+                           :unique-val  #{:agency/name}
                            :index   #{:agency/name}})
-(def ^:private route-cfg {:id   #{:route/id}
+(def ^:private route-cfg {:unique-id   #{:route/id}
                           :ref  {:route/agency-id :agency/id}})
-(def ^:private level-cfg {:id   #{:level/id}})
-(def ^:private stop-cfg {:id    #{:stop/id}
+(def ^:private level-cfg {:unique-id   #{:level/id}})
+(def ^:private stop-cfg {:unique-id    #{:stop/id}
                          :ref   {:stop/parent-station :stop/id
                                  :stop/level-id       :level/id}
                          :index #{:stop/name}})
-(def ^:private route-trip-cfg {:id   #{:route/id}
+(def ^:private route-trip-cfg {:unique-id   #{:route/id}
                                :cardinality-many  #{:route/trip-id}})
-(def ^:private shape-cfg-1 {:id   #{:shape/id}
+(def ^:private shape-cfg-1 {:unique-id   #{:shape/id}
                             :tuple {:shape/pt-lat-lon-sequence [:shape/pt-lat :shape/pt-lon :shape/pt-sequence]}
                             :cardinality-many  #{:shape/pt-lat-lon-sequence}})
-(def ^:private shape-cfg-2 {:id   #{:shape/id-pt-sequence}
+(def ^:private shape-cfg-2 {:unique-id   #{:shape/id-pt-sequence}
                             :tuple {:shape/id-pt-sequence [:shape/id :shape/pt-sequence]
                                     :shape/pt-lat-lon [:shape/pt-lat :shape/pt-lon]}})
 
@@ -61,10 +61,10 @@
        entities))
 
 (defn test-schema-attribute-vals [entity-cfg schema entity-attrs]
-  (doseq [attr (:id entity-cfg)]
+  (doseq [attr (:unique-id entity-cfg)]
     (is (= :db.unique/identity
            (:db/unique (attr schema)))))
-  (doseq [attr (:unique entity-cfg)]
+  (doseq [attr (:unique-val entity-cfg)]
     (is (= :db.unique/value
            (:db/unique (attr schema)))))
   (doseq [attr (:index entity-cfg)]
@@ -75,7 +75,7 @@
   (doseq [attr (:cardinality-many entity-cfg)]
     (is (= :db.cardinality/many
            (:db/cardinality (attr schema)))))
-  (doseq [attr (set/difference entity-attrs (:id entity-cfg) (:unique entity-cfg))]
+  (doseq [attr (set/difference entity-attrs (:unique-id entity-cfg) (:unique-val entity-cfg))]
     (is (-> (:db/unique (attr schema))
             nil?)))
   (doseq [attr (set/difference entity-attrs (:index entity-cfg))]
