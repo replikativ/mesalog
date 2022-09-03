@@ -106,9 +106,8 @@
     (testing "Agency data loaded correctly"
       (let [ids (d/q '[:find [?e ...] :where [?e :agency/id _]]
                      @*conn*)]
-        (= (-> (d/pull-many @*conn* agency-attrs ids)
-               (clean-pulled-entities (keys (:ref agency-cfg)))
-               set)
+        (= (set (-> (d/pull-many @*conn* agency-attrs ids)
+                    (clean-pulled-entities (keys (:ref agency-cfg)))))
            (set (dataset-for-transact agencies-ds)))))))
 
 (defn test-route-create-dataset [routes-ds]
@@ -209,9 +208,9 @@
                                               (dissoc :stop/level-id)
                                               (dissoc :stop/parent-station))
                                          stops))]
-        (is (= (set (dissoc-keys stops-dh))
-               (set (-> (dataset-for-transact stops-ds)
-                        dissoc-keys))))
+        (is (= (set (-> (dataset-for-transact stops-ds)
+                        dissoc-keys))
+               (set (dissoc-keys stops-dh))))
         (testing "Self-references are correct"
           (let [db-to-stop-ids (reduce (fn [m s] (assoc m (:db/id s) (:stop/id s)))
                                        {}
@@ -263,14 +262,12 @@
                                                   (assoc m k (read-string v)))
                                                 {}
                                                 %)))
-          eids (->> (d/q '[:find ?e :where [?e :shape/id _]]
-                         @*conn*)
-                    (map first)
-                    sort)]
-      (is (= (->> (d/pull-many @*conn* '[*] eids)
-                  (map #(dissoc % :db/id)))
-             (map #(-> (assoc % :shape/id-pt-sequence [(:shape/id %) (:shape/pt-sequence %)])
-                       (assoc :shape/pt-lat-lon [(:shape/pt-lat %) (:shape/pt-lon %)])
-                       (dissoc :shape/pt-lat)
-                       (dissoc :shape/pt-lon))
-                  shapes-from-csv))))))
+          ids (d/q '[:find [?e ...] :where [?e :shape/id _]]
+                   @*conn*)]
+      (is (= (set (->> (d/pull-many @*conn* '[*] ids)
+                       (map #(dissoc % :db/id))))
+             (set (map #(-> (assoc % :shape/id-pt-sequence [(:shape/id %) (:shape/pt-sequence %)])
+                            (assoc :shape/pt-lat-lon [(:shape/pt-lat %) (:shape/pt-lon %)])
+                            (dissoc :shape/pt-lat)
+                            (dissoc :shape/pt-lon))
+                       shapes-from-csv)))))))
