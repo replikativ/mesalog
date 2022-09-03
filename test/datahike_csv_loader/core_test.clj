@@ -88,6 +88,27 @@
     (is (= :db.cardinality/one
            (:db/cardinality (attr schema))))))
 
+(deftest test-csv-to-datahike-without-col-schema
+  (testing "Test csv-to-datahike without col-schema"
+    (d/delete-database datahike-cfg)
+    (d/create-database datahike-cfg)
+    (binding [*conn* (d/connect datahike-cfg)]
+      (load-csv *conn* agencies-filename)
+      (let [exp (->> (csv-to-maps agencies-filename)
+                     (map (fn [a]
+                            (let [a (-> (update a :agency/id read-string)
+                                        (update :agency/phone #(if (str/blank? %)
+                                                                 nil
+                                                                 (read-string %))))]
+                              (->> (remove (fn [[k v]] (nil? v)) a)
+                                   (into {})))))
+                     set)]
+        (is (= exp
+               (->> (d/q '[:find [?e ...] :where [?e :agency/id _]]
+                         @*conn*)
+                    (d/pull-many @*conn* (keys (first exp)))
+                    set)))))))
+
 (defn test-agency-create-dataset [agencies-ds]
   (testing (str "create-dataset handles natural numbers, strings, and blanks in " agencies-filename)
     (is (->> (csv-to-maps agencies-filename)

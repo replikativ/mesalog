@@ -90,6 +90,7 @@
                 add-tempid-col)]
     (update-ref-cols ds (refs-to-ids ds self-ref-cols foreign-ref-cols db))))
 
+; TODO filter -> remove
 (defn- dataset-with-ref-cols [ds ref-cols db]
   (let [cols-info (get-column-info ds)
         self-ref-cols (filter-ref-cols ref-cols (set (:name cols-info)))
@@ -223,13 +224,15 @@
   | `:cardinality-many` | `:db/cardinality` value `:db.cardinality/many`
   | `:ref`              | Map of `:db/valueType` `:db.type/ref` attributes to referenced attribute idents
   | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attributes to constituent column names (keywordized)"
-  [conn csv-file col-schema]
-  (let [ds (create-dataset csv-file (:ref col-schema) @conn)
-        data-schema (extract-schema (d/schema @conn) col-schema ds)]
-    (d/transact conn data-schema)
-    (->> (filter #(and (= (:db/valueType %) :db.type/tuple)
-                       (or (:db/tupleType %) (:db/tupleTypes %)))
-                 data-schema)
-         (map :db/ident)
-         (dataset-for-transact ds col-schema)
-         (d/transact conn))))
+  ([conn csv-file]
+   (load-csv conn csv-file {}))
+  ([conn csv-file col-schema]
+   (let [ds (create-dataset csv-file (:ref col-schema) @conn)
+         data-schema (extract-schema (d/schema @conn) col-schema ds)]
+     (d/transact conn data-schema)
+     (->> (filter #(and (= (:db/valueType %) :db.type/tuple)
+                        (or (:db/tupleType %) (:db/tupleTypes %)))
+                  data-schema)
+          (map :db/ident)
+          (dataset-for-transact ds col-schema)
+          (d/transact conn)))))
