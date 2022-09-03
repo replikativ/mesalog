@@ -106,19 +106,18 @@
     (testing "Agency data loaded correctly"
       (let [ids (d/q '[:find [?e ...] :where [?e :agency/id _]]
                      @*conn*)]
-        (= (set (-> (d/pull-many @*conn* agency-attrs ids)
-                    (clean-pulled-entities (keys (:ref agency-cfg)))))
-           (set (dataset-for-transact agencies-ds)))))))
+        (is (= (set (d/pull-many @*conn* agency-attrs ids))
+               (set (dataset-for-transact agencies-ds))))))))
 
 (defn test-route-create-dataset [routes-ds]
   (testing "create-dataset handles foreign IDs (references)"
-    (->> (csv-to-maps routes-filename)
-         (map #(-> (:route/agency-id %)
-                   read-string))
-         (map = (->> (:route/agency-id routes-ds)
-                     (d/pull-many @*conn* [:agency/id])
-                     (map :agency/id)))
-         (every? identity))))
+    (is (->> (csv-to-maps routes-filename)
+             (map #(-> (:route/agency-id %)
+                       read-string))
+             (map = (->> (:route/agency-id routes-ds)
+                         (d/pull-many @*conn* [:agency/id])
+                         (map :agency/id)))
+             (every? identity)))))
 
 (defn test-route-csv-to-datahike [routes-ds]
   (let [route-attrs (tc/column-names routes-ds)]
@@ -130,12 +129,10 @@
     (testing "Route data, including foreign references, loaded into Datahike"
       (let [ids (d/q '[:find [?e ...] :where [?e :route/id _]]
                      @*conn*)]
-        (= (-> (d/pull-many @*conn* route-attrs ids)
-               (clean-pulled-entities (keys (:ref route-cfg)))
-               set)
-           (->> (dataset-for-transact routes-ds)
-                (map #(dissoc % :db/id))
-                set))))))
+        (is (= (set (-> (d/pull-many @*conn* route-attrs ids)
+                        (clean-pulled-entities (keys (:ref route-cfg)))))
+               (set (->> (dataset-for-transact routes-ds)
+                         (map #(dissoc % :db/id))))))))))
 
 (defn test-route-trip-csv-to-datahike []
   (let [route-trip-maps (map #(update % :route/trip-id read-string)
