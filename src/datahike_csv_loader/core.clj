@@ -139,36 +139,37 @@
   ([cfg col-name col-dtype] (->> (required-schema-attrs cfg col-name col-dtype)
                                  (optional-schema-attrs cfg col-name))))
 
-(defn ^:no-doc extract-schema [db-schema cols-cfg ds]
-  (if-let [cardinality-many-attrs (:cardinality-many cols-cfg)]
+(defn ^:no-doc extract-schema [db-schema col-schema ds]
+  (if-let [cardinality-many-attrs (:cardinality-many col-schema)]
     (when (> (count cardinality-many-attrs) 1)
       (throw (IllegalArgumentException. "Each file is allowed at most one cardinality-many attribute"))))
-  (let [{:keys [unique-id tuple]} cols-cfg
+  (let [{:keys [unique-id tuple]} col-schema
         [composite-tuples other-tuples] (reduce (fn [tuples k]
                                                   (if (k unique-id)
                                                     (update tuples 0 #(conj % k))
                                                     (update tuples 1 #(conj % k))))
                                                 ['() '()]
                                                 (keys tuple))
-        composite-tuple-schemas (map #(-> (column-schema-attrs cols-cfg %)
+        composite-tuple-schemas (map #(-> (column-schema-attrs col-schema %)
                                           (assoc :db/tupleAttrs (% tuple)))
                                      composite-tuples)
         other-tuple-schemas (map (fn [k]
                                    (let [tuple-dtypes (->> (column-info-maps ds (k tuple))
                                                            (mapv #(tc-to-datahike-types (:datatype %))))
                                          tuple-dtypes-count (count (set tuple-dtypes))
-                                         tuple-schema (column-schema-attrs cols-cfg k)]
+                                         tuple-schema (column-schema-attrs col-schema k)]
                                      (if (> tuple-dtypes-count 1)
                                        (assoc tuple-schema :db/tupleTypes tuple-dtypes)
                                        (assoc tuple-schema :db/tupleType (first tuple-dtypes)))))
                                  other-tuples)
         tuple-cols-to-drop (mapcat #(% tuple) other-tuples)
-        include-cols (complement (-> (filter #(% db-schema) (tc/column-names ds))
-                                     (into tuple-cols-to-drop)
-                                     (conj :db/id)
-                                     set))]
+        include-cols (-> (filter #(% db-schema) (tc/column-names ds))
+                         (into tuple-cols-to-drop)
+                         (conj :db/id)
+                         set
+                         complement)]
     (->> (column-info-maps ds include-cols)
-         (mapv #(column-schema-attrs cols-cfg (:name %) (:datatype %)))
+         (mapv #(column-schema-attrs col-schema (:name %) (:datatype %)))
          (concat composite-tuple-schemas other-tuple-schemas))))
 
 (defn- merge-entity-rows [rows merge-attr]
@@ -181,7 +182,7 @@
 (defn ^:no-doc dataset-for-transact
   ([ds]
    (dataset-for-transact ds nil []))
-  ([ds cfg tuple-names]
+  ([ds col-schema tuple-names]
    (let [ds-to-tx (mapv (fn [row]
                           (let [nils-removed (reduce-kv (fn [m k v]
                                                           (if (some? v)
@@ -190,7 +191,7 @@
                                                         (transient {})
                                                         row)]
                             (persistent! (reduce (fn [row tname]
-                                                   (let [tuple-cols (tname (:tuple cfg))
+                                                   (let [tuple-cols (tname (:tuple col-schema))
                                                          tval (mapv row tuple-cols)]
                                                      (if (some? (reduce #(or %1 %2) tval))
                                                        (reduce (fn [m t] (dissoc! m t))
@@ -200,18 +201,18 @@
                                                  nils-removed
                                                  tuple-names))))
                         (tc/rows ds :as-maps))]
-     (if (:cardinality-many cfg)
-       (let [id-attr (first (:unique-id cfg))
-             merge-attr (first (:cardinality-many cfg))]
+     (if (:cardinality-many col-schema)
+       (let [id-attr (first (:unique-id col-schema))
+             merge-attr (first (:cardinality-many col-schema))]
          (->> (vals (group-by id-attr ds-to-tx))
               (map #(merge-entity-rows % merge-attr))))
        ds-to-tx))))
 
 (defn load-csv
   "Reads, parses, and loads data from CSV file named `csv-file` into a Datahike database via `conn`,
-  as specified in options map `cols-cfg`.
+  with schema for the corresponding attributes optionally specified in map `col-schema`.
 
-  `cols-cfg` expects a set of attribute idents as the value of each key, except `:ref` and `:tuple`.
+  `col-schema` expects a set of attribute idents as the value of each key, except `:ref` and `:tuple`.
   Available options are:
 
   | Key                 | Description   |
@@ -222,14 +223,13 @@
   | `:cardinality-many` | `:db/cardinality` value `:db.cardinality/many`
   | `:ref`              | Map of `:db/valueType` `:db.type/ref` attributes to referenced attribute idents
   | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attributes to constituent column names (keywordized)"
-
-  [conn csv-file cols-cfg]
-  (let [ds (create-dataset csv-file (:ref cols-cfg) @conn)
-        data-schema (extract-schema (d/schema @conn) cols-cfg ds)]
+  [conn csv-file col-schema]
+  (let [ds (create-dataset csv-file (:ref col-schema) @conn)
+        data-schema (extract-schema (d/schema @conn) col-schema ds)]
     (d/transact conn data-schema)
     (->> (filter #(and (= (:db/valueType %) :db.type/tuple)
                        (or (:db/tupleType %) (:db/tupleTypes %)))
                  data-schema)
          (map :db/ident)
-         (dataset-for-transact ds cols-cfg)
+         (dataset-for-transact ds col-schema)
          (d/transact conn))))
