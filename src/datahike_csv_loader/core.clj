@@ -1,6 +1,7 @@
 (ns datahike-csv-loader.core
   (:require [clojure.string :as str]
             [datahike.api :as d]
+            [datahike-csv-loader.utils :as utils]
             [tablecloth.api :as tc]))
 
 (defn- tc-to-datahike-types [datatype]
@@ -183,23 +184,11 @@
   ([ds]
    (dataset-for-transact ds nil []))
   ([ds col-schema tuple-names]
-   (let [ds-to-tx (mapv (fn [row]
-                          (let [nils-removed (reduce-kv (fn [m k v]
-                                                          (if (some? v)
-                                                            (assoc! m k v)
-                                                            m))
-                                                        (transient {})
-                                                        row)]
-                            (persistent! (reduce (fn [row tname]
-                                                   (let [tuple-cols (tname (:tuple col-schema))
-                                                         tval (mapv row tuple-cols)]
-                                                     (if (some? (reduce #(or %1 %2) tval))
-                                                       (reduce (fn [m t] (dissoc! m t))
-                                                               (assoc! row tname tval)
-                                                               tuple-cols)
-                                                       row)))
-                                                 nils-removed
-                                                 tuple-names))))
+   (let [ds-to-tx (mapv #(let [init (utils/rm-empty-elements % (transient {}) true)]
+                           (persistent! (utils/merge-tuple-cols tuple-names
+                                                                (:tuple col-schema)
+                                                                init
+                                                                true)))
                         (tc/rows ds :as-maps))]
      (if (:cardinality-many col-schema)
        (let [id-attr (first (:unique-id col-schema))
