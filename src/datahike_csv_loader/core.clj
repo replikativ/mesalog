@@ -90,12 +90,11 @@
                 add-tempid-col)]
     (update-ref-cols ds (refs-to-ids ds self-ref-cols foreign-ref-cols db))))
 
-; TODO filter -> remove
 (defn- dataset-with-ref-cols [ds ref-cols db]
   (let [cols-info (get-column-info ds)
         self-ref-cols (filter-ref-cols ref-cols (set (:name cols-info)))
         schema (d/schema db)
-        foreign-ref-cols (->> (filter (fn [[k v]] (not (k self-ref-cols)))
+        foreign-ref-cols (->> (remove (fn [[k v]] (k self-ref-cols))
                                       ref-cols)
                               (into {}))]
     (if (or (pos? (count self-ref-cols))
@@ -187,7 +186,7 @@
    (let [ds-to-tx (mapv (fn [row]
                           (let [nils-removed (reduce-kv (fn [m k v]
                                                           (if (some? v)
-                                                            (conj! m [k v])
+                                                            (assoc! m k v)
                                                             m))
                                                         (transient {})
                                                         row)]
