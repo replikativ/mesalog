@@ -48,7 +48,7 @@
   (let [csv (with-open [reader (io/reader filename)]
               (charred/read-csv reader))
         cols (map keyword (first csv))]
-    (map #(zipmap cols %) (rest csv))))
+    (mapv #(zipmap cols %) (rest csv))))
 
 (defn- unwrap-refs [e ref-attrs]
   (reduce (fn [e a] (update e a :db/id))
