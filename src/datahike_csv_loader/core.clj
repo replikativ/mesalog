@@ -198,11 +198,13 @@
        ds-to-tx))))
 
 (defn load-csv
-  "Reads, parses, and loads data from CSV file named `csv-file` into a Datahike database via `conn`,
-  with schema for the corresponding attributes optionally specified in map `col-schema`.
+  "Reads, parses, and loads data from CSV file named `csv-file` into the Datahike database pointed to
+  by `conn`, with schema for the corresponding attributes optionally specified in map `col-schema`.
+  Each column represents an attribute, with keywordized column name as attribute ident, or otherwise,
+  an element in a heterogeneous or homogeneous tuple.
 
   `col-schema` expects a set of attribute idents as the value of each key, except `:ref` and `:tuple`.
-  Available options are:
+  Available options:
 
   | Key                 | Description   |
   |---------------------|---------------|
@@ -211,7 +213,9 @@
   | `:index`            | `:db/index` value `true`
   | `:cardinality-many` | `:db/cardinality` value `:db.cardinality/many`
   | `:ref`              | Map of `:db/valueType` `:db.type/ref` attributes to referenced attribute idents
-  | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attributes to constituent column names (keywordized)"
+  | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attributes to constituent attribute idents
+
+  Please see README for more detail."
   ([conn csv-file]
    (load-csv conn csv-file {}))
   ([conn csv-file col-schema]
