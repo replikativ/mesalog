@@ -97,7 +97,7 @@ datahike-csv-loader currently:
 1. Assumes that the columns of any given CSV file represent attributes that do not yet exist in the database, i.e. it isn't possible to add data for existing attributes.
 2. Apart from any specification passed in `col-schema` to `load-csv`, automatically infers attribute schema, i.e. complete user specification of the schema isn't supported.
 
-We hope to address these shortcomings if they prove substantial.
+We hope to address these shortcomings if they prove to be substantial.
 
 ## License
 
