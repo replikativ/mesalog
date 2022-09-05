@@ -109,6 +109,11 @@
                               @*conn*)
                          (d/pull-many @*conn* (keys (first exp)))))))))))
 
+(defn get-db-ids [id-attr from-csv db]
+  (->> (map (fn [r] [id-attr (id-attr r)]) from-csv)
+       (d/pull-many db [:db/id])
+       (map :db/id)))
+
 (defn test-agency-csv-to-datahike []
   (let [agencies-from-csv (process-agencies-from-csv agencies-filename)
         agency-attrs (keys (first agencies-from-csv))]
@@ -118,8 +123,10 @@
     (testing "Agency data loaded correctly"
       (let [ids (d/q '[:find [?e ...] :where [?e :agency/id _]]
                      @*conn*)]
-        (is (= (set (d/pull-many @*conn* agency-attrs ids))
-               (set (map #(utils/rm-empty-elements % {} false) agencies-from-csv))))))))
+        (is (= (->> agencies-from-csv
+                    (map #(utils/rm-empty-elements % {} false)))
+               (->> (get-db-ids :agency/id agencies-from-csv @*conn*)
+                    (d/pull-many @*conn* agency-attrs))))))))
 
 (defn test-route-csv-to-datahike []
   (let [routes-csv (->> (csv-to-maps routes-filename)
@@ -129,10 +136,7 @@
     (load-csv *conn* routes-filename route-cfg)
     (testing "Foreign ID (reference) attributes transacted"
       (test-schema-attribute-vals route-cfg (d/schema @*conn*) (set route-attrs)))
-    (let [ids (->> (map (fn [r] [:route/id (:route/id r)]) routes-csv)
-                   ; TODO factor out
-                   (d/pull-many @*conn* [:db/id])
-                   (map :db/id))
+    (let [ids (get-db-ids :route/id routes-csv @*conn*)
           routes-dh (-> (d/pull-many @*conn* route-attrs ids)
                         (clean-pulled-entities (keys (:ref route-cfg))))
           routes-minus-agency-id (map #(dissoc % :route/agency-id) routes-dh)]
@@ -142,10 +146,10 @@
                     (d/pull-many @*conn* [:agency/id])
                     (map :agency/id)))))
       (testing "Other route data correctly loaded"
-        (is (= (set (map #(-> (utils/rm-empty-elements % {} false)
-                              (dissoc :route/agency-id))
-                         routes-csv))
-               (set routes-minus-agency-id)))))))
+        (is (= (map #(-> (utils/rm-empty-elements % {} false)
+                         (dissoc :route/agency-id))
+                    routes-csv)
+               routes-minus-agency-id))))))
 
 (defn test-route-trip-csv-to-datahike []
   (let [route-trip-maps (map #(update % :route/trip-id read-string)
@@ -208,9 +212,7 @@
       (load-csv *conn* stops-filename stop-cfg)
       (testing "Schema attributes correctly transacted"
         (test-schema-attribute-vals stop-cfg (d/schema @*conn*) (set stop-attrs)))
-      (let [ids (->> (map (fn [r] [:stop/id (:stop/id r)]) stops-csv)
-                     (d/pull-many @*conn* [:db/id])
-                     (map :db/id))
+      (let [ids (get-db-ids :stop/id stops-csv @*conn*)
             stops-dh (map #(unwrap-refs % (keys (:ref stop-cfg)))
                           (d/pull-many @*conn* stop-attrs ids))
             dissoc-refs #(-> (dissoc % :stop/level-id)
