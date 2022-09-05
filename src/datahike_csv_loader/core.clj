@@ -212,8 +212,8 @@
   | `:unique-val`       | `:db/unique` value `:db.unique/value`
   | `:index`            | `:db/index` value `true`
   | `:cardinality-many` | `:db/cardinality` value `:db.cardinality/many`
-  | `:ref`              | Map of `:db/valueType` `:db.type/ref` attributes to referenced attribute idents
-  | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attributes to constituent attribute idents
+  | `:ref`              | Map of `:db/valueType` `:db.type/ref` attribute idents to referenced attribute idents
+  | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attribute idents to constituent attribute idents
 
   Please see README for more detail."
   ([conn csv-file]
