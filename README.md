@@ -27,8 +27,8 @@ Reads, parses, and loads data from `data.csv` into the database pointed to by `c
   | `:unique-val`       | `:db/unique` value `:db.unique/value`
   | `:index`            | `:db/index` value `true`
   | `:cardinality-many` | `:db/cardinality` value `:db.cardinality/many`
-  | `:ref`              | Map of `:db/valueType` `:db.type/ref` attributes to referenced attribute idents
-  | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attributes to constituent attribute idents
+  | `:ref`              | Map of `:db/valueType` `:db.type/ref` attribute idents to referenced attribute idents
+  | `:tuple`            | Map of `:db/valueType` `:db.type/tuple` attribute idents to constituent attribute idents
 
 Each file is assumed to represent attributes for one entity "type", whether new or existing: e.g. a student with columns _student/name_, _student/id_. This also means that attribute data for a single "type" can be loaded from multiple files: for example, another file with columns _student/id_ and _student/course_ can be loaded later. Attribute schema can be partially specified via `col-schema`: for example, a value of `#{:user/email :user/acct-id}` for the key `:unique-id` indicates that the attributes in the set are unique identifiers. That said, except with `:db.type/ref` and `:db.type/tuple`, `:db/valueType` is inferred. Note also that only one cardinality-many attribute is allowed per file for semantic reasons.
 
