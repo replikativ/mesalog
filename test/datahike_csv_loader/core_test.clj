@@ -5,6 +5,7 @@
             [charred.api :as charred]
             [clojure.test :refer [deftest testing is]]
             [datahike.api :as d]
+            [datahike-csv-loader.utils :as utils]
             [datahike-csv-loader.core :refer :all]
             [tablecloth.api :as tc]))
 
@@ -88,39 +89,29 @@
     (is (= :db.cardinality/one
            (:db/cardinality (attr schema))))))
 
+(defn process-agencies-from-csv [filename]
+  (map (fn [a]
+         (let [phone-fn #(if (str/blank? %) nil (read-string %))]
+           (-> (update a :agency/id read-string)
+               (update :agency/phone phone-fn))))
+       (csv-to-maps filename)))
+
 (deftest test-csv-to-datahike-without-col-schema
   (testing "Test csv-to-datahike without col-schema"
     (d/delete-database datahike-cfg)
     (d/create-database datahike-cfg)
     (binding [*conn* (d/connect datahike-cfg)]
       (load-csv *conn* agencies-filename)
-      (let [exp (->> (csv-to-maps agencies-filename)
-                     (map (fn [a]
-                            (let [a (-> (update a :agency/id read-string)
-                                        (update :agency/phone #(if (str/blank? %)
-                                                                 nil
-                                                                 (read-string %))))]
-                              (->> (remove (fn [[k v]] (nil? v)) a)
-                                   (into {})))))
-                     set)]
-        (is (= exp
-               (->> (d/q '[:find [?e ...] :where [?e :agency/id _]]
-                         @*conn*)
-                    (d/pull-many @*conn* (keys (first exp)))
-                    set)))))))
+      (let [exp (->> (process-agencies-from-csv agencies-filename)
+                     (map #(utils/rm-empty-elements % {} false)))]
+        (is (= (set exp)
+               (set (->> (d/q '[:find [?e ...] :where [?e :agency/id _]]
+                              @*conn*)
+                         (d/pull-many @*conn* (keys (first exp)))))))))))
 
-(defn test-agency-create-dataset [agencies-ds]
-  (testing (str "create-dataset handles natural numbers, strings, and blanks in " agencies-filename)
-    (is (->> (csv-to-maps agencies-filename)
-             (map (fn [a]
-                    (let [phone-fn #(if (str/blank? %) nil (read-string %))]
-                      (-> (update a :agency/id read-string)
-                          (update :agency/phone phone-fn)))))
-             (map = (tc/rows agencies-ds :as-maps))
-             (every? identity)))))
-
-(defn test-agency-csv-to-datahike [agencies-ds]
-  (let [agency-attrs (tc/column-names agencies-ds)]
+(defn test-agency-csv-to-datahike []
+  (let [agencies-from-csv (process-agencies-from-csv agencies-filename)
+        agency-attrs (keys (first agencies-from-csv))]
     (load-csv *conn* agencies-filename agency-cfg)
     (testing "Unique identity, unique value, and indexed schema attributes transacted"
       (test-schema-attribute-vals agency-cfg (d/schema @*conn*) (set agency-attrs)))
@@ -128,32 +119,33 @@
       (let [ids (d/q '[:find [?e ...] :where [?e :agency/id _]]
                      @*conn*)]
         (is (= (set (d/pull-many @*conn* agency-attrs ids))
-               (set (dataset-for-transact agencies-ds))))))))
+               (set (map #(utils/rm-empty-elements % {} false) agencies-from-csv))))))))
 
-(defn test-route-create-dataset [routes-ds]
-  (testing "create-dataset handles foreign IDs (references)"
-    (is (->> (csv-to-maps routes-filename)
-             (map #(-> (:route/agency-id %)
-                       read-string))
-             (map = (->> (:route/agency-id routes-ds)
-                         (d/pull-many @*conn* [:agency/id])
-                         (map :agency/id)))
-             (every? identity)))))
-
-(defn test-route-csv-to-datahike [routes-ds]
-  (let [route-attrs (tc/column-names routes-ds)]
+(defn test-route-csv-to-datahike []
+  (let [routes-csv (->> (csv-to-maps routes-filename)
+                        (map #(-> (update % :route/agency-id read-string)
+                                  (update :route/type read-string))))
+        route-attrs (keys (first routes-csv))]
     (load-csv *conn* routes-filename route-cfg)
     (testing "Foreign ID (reference) attributes transacted"
-      (test-schema-attribute-vals route-cfg
-                                  (d/schema @*conn*)
-                                  (disj (set route-attrs) :db/id)))
-    (testing "Route data, including foreign references, loaded into Datahike"
-      (let [ids (d/q '[:find [?e ...] :where [?e :route/id _]]
-                     @*conn*)]
-        (is (= (set (-> (d/pull-many @*conn* route-attrs ids)
-                        (clean-pulled-entities (keys (:ref route-cfg)))))
-               (set (->> (dataset-for-transact routes-ds)
-                         (map #(dissoc % :db/id))))))))))
+      (test-schema-attribute-vals route-cfg (d/schema @*conn*) (set route-attrs)))
+    (let [ids (->> (map (fn [r] [:route/id (:route/id r)]) routes-csv)
+                   ; TODO factor out
+                   (d/pull-many @*conn* [:db/id])
+                   (map :db/id))
+          routes-dh (-> (d/pull-many @*conn* route-attrs ids)
+                        (clean-pulled-entities (keys (:ref route-cfg))))
+          routes-minus-agency-id (map #(dissoc % :route/agency-id) routes-dh)]
+      (testing "Route foreign references in Datahike are correct"
+        (is (= (map :route/agency-id routes-csv)
+               (->> (map :route/agency-id routes-dh)
+                    (d/pull-many @*conn* [:agency/id])
+                    (map :agency/id)))))
+      (testing "Other route data correctly loaded"
+        (is (= (set (map #(-> (utils/rm-empty-elements % {} false)
+                              (dissoc :route/agency-id))
+                         routes-csv))
+               (set routes-minus-agency-id)))))))
 
 (defn test-route-trip-csv-to-datahike []
   (let [route-trip-maps (map #(update % :route/trip-id read-string)
@@ -184,13 +176,9 @@
   (d/delete-database datahike-cfg)
   (d/create-database datahike-cfg)
   (binding [*conn* (d/connect datahike-cfg)]
-    (let [agencies-ds (create-dataset agencies-filename)]
-      (test-agency-create-dataset agencies-ds)
-      (test-agency-csv-to-datahike agencies-ds)
-      (let [routes-ds (create-dataset routes-filename (:ref route-cfg) @*conn*)]
-        (test-route-create-dataset routes-ds)
-        (test-route-csv-to-datahike routes-ds)
-        (test-route-trip-csv-to-datahike)))))
+    (test-agency-csv-to-datahike)
+    (test-route-csv-to-datahike)
+    (test-route-trip-csv-to-datahike)))
 
 (deftest test-refs-in-schema
   (testing "IllegalArgumentException is thrown when attribute not present in schema is referenced"
@@ -199,60 +187,46 @@
     (binding [*conn* (d/connect datahike-cfg)]
       (is (thrown? IllegalArgumentException (load-csv *conn* routes-filename route-cfg))))))
 
-(defn test-stop-create-dataset [stops-ds stop-maps]
-  (let [keys-of-interest #{:stop/id :stop/name :stop/lon :stop/lat}]
-    (testing "create-dataset handles floats and more strings correctly"
-      (is (->> (map #(-> (select-keys % keys-of-interest)
-                         (update :stop/lat read-string)
-                         (update :stop/lon read-string))
-                    stop-maps)
-               (map = (->> (tc/rows stops-ds :as-maps)
-                           (map #(select-keys % keys-of-interest))))
-               (every? identity))))))
-
-(defn test-stop-csv-to-datahike [stops-ds stop-maps]
-  (let [stop-attrs (tc/column-names stops-ds)]
-    (load-csv *conn* stops-filename stop-cfg)
-    (testing "Schema attributes correctly transacted"
-      (test-schema-attribute-vals stop-cfg
-                                  (d/schema @*conn*)
-                                  (disj (set stop-attrs) :db/id)))
-    (testing "Stop data loaded into Datahike"
-      (let [ids (d/q '[:find [?e ...] :where [?e :stop/id _]]
-                     @*conn*)
-            stops-dh (map #(unwrap-refs % (keys (:ref stop-cfg)))
-                          (d/pull-many @*conn* stop-attrs ids))
-            dissoc-keys (fn [stops] (map #(-> (dissoc % :db/id)
-                                              (dissoc :stop/level-id)
-                                              (dissoc :stop/parent-station))
-                                         stops))]
-        (is (= (set (-> (dataset-for-transact stops-ds)
-                        dissoc-keys))
-               (set (dissoc-keys stops-dh))))
-        (testing "Self-references are correct"
-          (let [db-to-stop-ids (reduce (fn [m s] (assoc m (:db/id s) (:stop/id s)))
-                                       {}
-                                       stops-dh)]
-            (is (= (reduce (fn [m s] (->> (db-to-stop-ids (:stop/parent-station s))
-                                          (assoc m (:stop/id s))))
-                           {}
-                           stops-dh)
-                   (reduce (fn [m s]
-                             (let [parent-station (:stop/parent-station s)]
-                               (->> (if (empty? parent-station) nil parent-station)
-                                    (assoc m (:stop/id s)))))
-                           {}
-                           stop-maps)))))))))
-
-(deftest test-stop
+(deftest test-stop-csv-to-datahike
   (d/delete-database datahike-cfg)
   (d/create-database datahike-cfg)
   (binding [*conn* (d/connect datahike-cfg)]
     (load-csv *conn* levels-filename level-cfg)
-    (let [stops-ds (create-dataset stops-filename (:ref stop-cfg) @*conn*)
-          stop-maps (csv-to-maps stops-filename)]
-      (test-stop-create-dataset stops-ds stop-maps)
-      (test-stop-csv-to-datahike stops-ds stop-maps))))
+    (let [stops-csv (->> (csv-to-maps stops-filename)
+                         (map #(-> (reduce (fn [stop k]
+                                             (if (seq (k stop))
+                                               (update stop k read-string)
+                                               (update stop k (constantly nil))))
+                                           %
+                                           #{:stop/lat
+                                             :stop/lon
+                                             :stop/location-type
+                                             :stop/wheelchair-boarding
+                                             :stop/platform-code
+                                             :stop/level-id}))))
+          stop-attrs (keys (first stops-csv))]
+      (load-csv *conn* stops-filename stop-cfg)
+      (testing "Schema attributes correctly transacted"
+        (test-schema-attribute-vals stop-cfg (d/schema @*conn*) (set stop-attrs)))
+      (let [ids (->> (map (fn [r] [:stop/id (:stop/id r)]) stops-csv)
+                     (d/pull-many @*conn* [:db/id])
+                     (map :db/id))
+            stops-dh (map #(unwrap-refs % (keys (:ref stop-cfg)))
+                          (d/pull-many @*conn* stop-attrs ids))
+            dissoc-refs #(-> (dissoc % :stop/level-id)
+                             (dissoc :stop/parent-station))]
+        (testing "Stop self (parent) references in Datahike are correct"
+          (is (= (->> (map :stop/parent-station stops-csv)
+                      (remove empty?))
+                 (->> (map :stop/parent-station stops-dh)
+                      (remove nil?)
+                      (d/pull-many @*conn* [:stop/id])
+                      (map :stop/id)))))
+        (testing "Other stop data correctly loaded"
+          (is (= (map #(-> (utils/rm-empty-elements % {} false)
+                           dissoc-refs)
+                      stops-csv)
+                 (map dissoc-refs stops-dh))))))))
 
 (deftest test-heterogeneous-tuple-csv-to-datahike
   (d/delete-database datahike-cfg)

@@ -103,7 +103,7 @@
       (handle-ref-cols ds cols-info self-ref-cols foreign-ref-cols db)
       ds)))
 
-(defn ^:no-doc create-dataset
+(defn- create-dataset
   ([csv] (create-dataset csv nil nil))
   ([csv ref-cols db] (cond-> (tc/dataset csv {:key-fn keyword})
                        (and (some? ref-cols)
@@ -140,7 +140,7 @@
   ([cfg col-name col-dtype] (->> (required-schema-attrs cfg col-name col-dtype)
                                  (optional-schema-attrs cfg col-name))))
 
-(defn ^:no-doc extract-schema [db-schema col-schema ds]
+(defn- extract-schema [db-schema col-schema ds]
   (if-let [cardinality-many-attrs (:cardinality-many col-schema)]
     (when (> (count cardinality-many-attrs) 1)
       (throw (IllegalArgumentException. "Each file is allowed at most one cardinality-many attribute"))))
@@ -180,7 +180,7 @@
           (update (first rows) merge-attr vector)
           (rest rows)))
 
-(defn ^:no-doc dataset-for-transact
+(defn- dataset-for-transact
   ([ds]
    (dataset-for-transact ds nil []))
   ([ds col-schema tuple-names]
