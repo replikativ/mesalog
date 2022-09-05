@@ -157,11 +157,10 @@
         other-tuple-schemas (map (fn [k]
                                    (let [tuple-dtypes (->> (column-info-maps ds (k tuple))
                                                            (mapv #(tc-to-datahike-types (:datatype %))))
-                                         tuple-dtypes-count (count (set tuple-dtypes))
                                          tuple-schema (column-schema-attrs col-schema k)]
-                                     (if (> tuple-dtypes-count 1)
-                                       (assoc tuple-schema :db/tupleTypes tuple-dtypes)
-                                       (assoc tuple-schema :db/tupleType (first tuple-dtypes)))))
+                                     (if (apply = tuple-dtypes)
+                                       (assoc tuple-schema :db/tupleType (first tuple-dtypes))
+                                       (assoc tuple-schema :db/tupleTypes tuple-dtypes))))
                                  other-tuples)
         tuple-cols-to-drop (mapcat #(% tuple) other-tuples)
         include-cols (-> (filter #(% db-schema) (tc/column-names ds))
