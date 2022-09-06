@@ -8,10 +8,12 @@ A summary of the information below is also available: [![cljdoc badge](https://c
 
 ``` clojure
 (require '[datahike.api :as d]
-               '[datahike-csv-loader.core :as dcsv])
+         '[datahike-csv-loader.core :as dcsv])
+
 (d/create-database)
 (def conn (d/connect))
 (dcsv/load-csv conn "data.csv")
+
 ;; or (map contents elided here and described below)
 (def col-schema {...})
 (dcsv/load-csv conn "data.csv" col-schema)
@@ -38,14 +40,14 @@ Data in a reference-valued attribute column must consist of domain identifier (i
 
 ``` clojure
 (d/transact conn [{:db/ident :course/id
-                         :db/unique :db.unique/identity
-                         ...}])
+                   :db/unique :db.unique/identity
+                   ...}])
 (d/transact conn [{:course/id "CMSC101"
                    :course/name "Intro. to CS"}
                    ...])
 (dcsv/load-csv conn "students.csv" {:unique-id #{:student/id}
-                                          :cardinality-many #{:student/course}
-                                          :ref {:student/course :course/id}})
+                                    :cardinality-many #{:student/course}
+                                    :ref {:student/course :course/id}})
 ;; values for :student/course will consist of their corresponding course entity IDs 
 ```
 With CSV contents such as:
@@ -96,8 +98,9 @@ Note that the schema definitions of these tuple types imply that columns belongi
 datahike-csv-loader currently:
 1. Assumes that the columns of any given CSV file represent attributes that do not yet exist in the database, i.e. it isn't possible to add data for existing attributes.
 2. Apart from any specification passed in `col-schema` to `load-csv`, automatically infers attribute schema, i.e. complete user specification of the schema isn't supported.
+3. Doesn't support batched loading.
 
-We hope to address these shortcomings if they prove to be substantial.
+We plan to address these shortcomings, and any others that arise, if they prove to be substantial.
 
 ## License
 
