@@ -90,11 +90,11 @@
            (:db/cardinality (attr schema))))))
 
 (defn process-agencies-from-csv [filename]
-  (map (fn [a]
-         (let [phone-fn #(if (str/blank? %) nil (read-string %))]
-           (-> (update a :agency/id read-string)
-               (update :agency/phone phone-fn))))
-       (csv-to-maps filename)))
+  (mapv (fn [a]
+          (let [phone-fn #(if (str/blank? %) nil (read-string %))]
+            (-> (update a :agency/id read-string)
+                (update :agency/phone phone-fn))))
+        (csv-to-maps filename)))
 
 (deftest test-csv-to-datahike-without-col-schema
   (testing "Test csv-to-datahike without col-schema"
@@ -103,7 +103,7 @@
     (binding [*conn* (d/connect datahike-cfg)]
       (load-csv *conn* agencies-filename)
       (let [exp (->> (process-agencies-from-csv agencies-filename)
-                     (map #(utils/rm-empty-elements % {} false)))]
+                     (mapv #(utils/rm-empty-elements % {} false)))]
         (is (= (set exp)
                (set (->> (d/q '[:find [?e ...] :where [?e :agency/id _]]
                               @*conn*)
@@ -112,7 +112,7 @@
 (defn get-db-ids [id-attr from-csv db]
   (->> (map (fn [r] [id-attr (id-attr r)]) from-csv)
        (d/pull-many db [:db/id])
-       (map :db/id)))
+       (mapv :db/id)))
 
 (defn test-agency-csv-to-datahike []
   (let [agencies-from-csv (process-agencies-from-csv agencies-filename)
@@ -124,14 +124,14 @@
       (let [ids (d/q '[:find [?e ...] :where [?e :agency/id _]]
                      @*conn*)]
         (is (= (->> agencies-from-csv
-                    (map #(utils/rm-empty-elements % {} false)))
+                    (mapv #(utils/rm-empty-elements % {} false)))
                (->> (get-db-ids :agency/id agencies-from-csv @*conn*)
                     (d/pull-many @*conn* agency-attrs))))))))
 
 (defn test-route-csv-to-datahike []
   (let [routes-csv (->> (csv-to-maps routes-filename)
-                        (map #(-> (update % :route/agency-id read-string)
-                                  (update :route/type read-string))))
+                        (mapv #(-> (update % :route/agency-id read-string)
+                                   (update :route/type read-string))))
         route-attrs (keys (first routes-csv))]
     (load-csv *conn* routes-filename route-cfg)
     (testing "Foreign ID (reference) attributes transacted"
@@ -146,14 +146,14 @@
                     (d/pull-many @*conn* [:agency/id])
                     (map :agency/id)))))
       (testing "Other route data correctly loaded"
-        (is (= (map #(-> (utils/rm-empty-elements % {} false)
-                         (dissoc :route/agency-id))
-                    routes-csv)
+        (is (= (mapv #(-> (utils/rm-empty-elements % {} false)
+                          (dissoc :route/agency-id))
+                     routes-csv)
                routes-minus-agency-id))))))
 
 (defn test-route-trip-csv-to-datahike []
-  (let [route-trip-maps (map #(update % :route/trip-id read-string)
-                             (csv-to-maps route-trips-filename))
+  (let [route-trip-maps (mapv #(update % :route/trip-id read-string)
+                              (csv-to-maps route-trips-filename))
         route-trip-attrs (keys (first route-trip-maps))]
     (load-csv *conn* route-trips-filename route-trip-cfg)
     (testing "Cardinality-many schema attributes transacted"
@@ -197,17 +197,17 @@
   (binding [*conn* (d/connect datahike-cfg)]
     (load-csv *conn* levels-filename level-cfg)
     (let [stops-csv (->> (csv-to-maps stops-filename)
-                         (map #(-> (reduce (fn [stop k]
-                                             (if (seq (k stop))
-                                               (update stop k read-string)
-                                               (update stop k (constantly nil))))
-                                           %
-                                           #{:stop/lat
-                                             :stop/lon
-                                             :stop/location-type
-                                             :stop/wheelchair-boarding
-                                             :stop/platform-code
-                                             :stop/level-id}))))
+                         (mapv #(-> (reduce (fn [stop k]
+                                              (if (seq (k stop))
+                                                (update stop k read-string)
+                                                (update stop k (constantly nil))))
+                                            %
+                                            #{:stop/lat
+                                              :stop/lon
+                                              :stop/location-type
+                                              :stop/wheelchair-boarding
+                                              :stop/platform-code
+                                              :stop/level-id}))))
           stop-attrs (keys (first stops-csv))]
       (load-csv *conn* stops-filename stop-cfg)
       (testing "Schema attributes correctly transacted"
@@ -218,16 +218,16 @@
             dissoc-refs #(-> (dissoc % :stop/level-id)
                              (dissoc :stop/parent-station))]
         (testing "Stop self (parent) references in Datahike are correct"
-          (is (= (->> (map :stop/parent-station stops-csv)
+          (is (= (->> (mapv :stop/parent-station stops-csv)
                       (remove empty?))
                  (->> (map :stop/parent-station stops-dh)
                       (remove nil?)
                       (d/pull-many @*conn* [:stop/id])
                       (map :stop/id)))))
         (testing "Other stop data correctly loaded"
-          (is (= (map #(-> (utils/rm-empty-elements % {} false)
-                           dissoc-refs)
-                      stops-csv)
+          (is (= (mapv #(-> (utils/rm-empty-elements % {} false)
+                            dissoc-refs)
+                       stops-csv)
                  (map dissoc-refs stops-dh))))))))
 
 (deftest test-heterogeneous-tuple-csv-to-datahike
@@ -252,16 +252,16 @@
   (binding [*conn* (d/connect datahike-cfg)]
     (load-csv *conn* shapes-filename shape-cfg-2)
     (let [shapes-from-csv (->> (csv-to-maps shapes-filename)
-                               (map #(reduce-kv (fn [m k v]
-                                                  (assoc m k (read-string v)))
-                                                {}
-                                                %)))
+                               (mapv #(reduce-kv (fn [m k v]
+                                                   (assoc m k (read-string v)))
+                                                 {}
+                                                 %)))
           ids (d/q '[:find [?e ...] :where [?e :shape/id _]]
                    @*conn*)]
       (is (= (set (->> (d/pull-many @*conn* '[*] ids)
                        (map #(dissoc % :db/id))))
-             (set (map #(-> (assoc % :shape/id-pt-sequence [(:shape/id %) (:shape/pt-sequence %)])
-                            (assoc :shape/pt-lat-lon [(:shape/pt-lat %) (:shape/pt-lon %)])
-                            (dissoc :shape/pt-lat)
-                            (dissoc :shape/pt-lon))
-                       shapes-from-csv)))))))
+             (set (mapv #(-> (assoc % :shape/id-pt-sequence [(:shape/id %) (:shape/pt-sequence %)])
+                             (assoc :shape/pt-lat-lon [(:shape/pt-lat %) (:shape/pt-lon %)])
+                             (dissoc :shape/pt-lat)
+                             (dissoc :shape/pt-lon))
+                        shapes-from-csv)))))))
