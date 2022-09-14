@@ -2,9 +2,9 @@
 
 Loads CSV data into [Datahike](https://datahike.io) (see also its [GitHub repository](https://github.com/replikativ/datahike)) with a single function call.
 
-A summary of the information below is also available: [![cljdoc badge](https://cljdoc.org/badge/io.replikativ/datahike-csv-loader)](https://cljdoc.org/d/io.replikativ/datahike-csv-loader)
-
 ## Usage
+
+[![Clojars Project](https://img.shields.io/clojars/v/io.replikativ/datahike-csv-loader.svg)](https://clojars.org/io.replikativ/datahike-csv-loader) [![cljdoc badge](https://cljdoc.org/badge/io.replikativ/datahike-csv-loader)](https://cljdoc.org/d/io.replikativ/datahike-csv-loader)
 
 ``` clojure
 (require '[datahike.api :as d]
