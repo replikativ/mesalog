@@ -259,7 +259,7 @@
          ds (create-dataset csv-file ref-map @conn)
          schema (if (map? schema)
                   (extract-schema schema ref-map tuple-map composite-tuple-map ds db-schema)
-                  (remove #(% db-schema) (map :db/ident schema)))]
+                  (remove #((:db/ident %) db-schema) schema))]
      (if (not-empty schema)
        (d/transact conn schema))
      (->> (dataset-for-transact ds (d/reverse-schema @conn) tuple-map)
