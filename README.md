@@ -1,6 +1,6 @@
 # datahike-csv-loader
 
-Loads CSV data into [Datahike](https://datahike.io) (see also its [GitHub repository](https://github.com/replikativ/datahike)) with a single function call.
+Loads CSV data into [Datahike](https://datahike.io) (or [on GitHub](https://github.com/replikativ/datahike)) with a single function call.
 
 ## Usage
 
