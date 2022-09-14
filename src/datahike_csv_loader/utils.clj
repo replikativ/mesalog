@@ -8,9 +8,9 @@
              init
              coll))
 
-(defn merge-tuple-cols [tuple-names tuple-schema init init-transient?]
+(defn merge-tuple-cols [tuple-map init init-transient?]
   (reduce (fn [row tname]
-            (let [tuple-cols (tname tuple-schema)
+            (let [tuple-cols (tname tuple-map)
                   tval (mapv row tuple-cols)
                   assoc-fn (if init-transient? assoc! assoc)
                   dissoc-fn (if init-transient? dissoc! dissoc)]
@@ -20,4 +20,4 @@
                         tuple-cols)
                 row)))
           init
-          tuple-names))
+          (keys tuple-map)))
