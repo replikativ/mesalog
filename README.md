@@ -11,9 +11,11 @@ A summary of the information below is also available: [![cljdoc badge](https://c
          '[datahike-csv-loader.core :as dcsv])
 
 (dcsv/load-csv "data.csv")
+
 ;; or
 (def cfg {:store ...})
 (dcsv/load-csv "data.csv" cfg)
+
 ;; or (map contents elided here and described below)
 (dcsv/load-csv "data.csv" cfg {:schema [{:db/ident :name
                                          ...}
@@ -21,6 +23,7 @@ A summary of the information below is also available: [![cljdoc badge](https://c
                                :ref-map {...}
                                :tuple-map {...}
                                :composite-tuple-map {...}})
+
 ;; or (ditto)
 (dcsv/load-csv "data.csv" cfg {:schema {:unique-id #{...}
                                         ...}
