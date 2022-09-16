@@ -71,7 +71,7 @@ Unspecified schema attribute values are defaults or inferred from the data given
 
 `load-csv` also handles data for attributes already present in the schema, e.g. if a file with identical or overlapping column names was loaded earlier, in which case the corresponding columns should be left out of `:schema`, although they would be excluded anyway from any schema transaction before the data proper is loaded. That said, this behaviour hasn't yet been tested, so caution is advised.
 
-#### Ref-valued attributes
+#### `:ref-map`
 
 Data in a reference-valued attribute column must consist of domain identifier (i.e. an attribute with `:db.unique/identity`) values for entities already present in the database; these are automatically converted into entity IDs. For example:
 
@@ -99,7 +99,7 @@ With CSV contents such as:
 
 Support for loading entity IDs directly can be added if observations of such use cases in the wild are reported.
 
-#### Tuple attributes
+#### `:tuple-map` and `:composite-tuple-map`
 
 First: an [introduction](https://docs.datomic.com/on-prem/schema/schema.html#tuples) to tuples for the uninitiated.
 
