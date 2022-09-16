@@ -2,7 +2,7 @@
 
 Loads CSV data into [Datahike](https://datahike.io) (or [on GitHub](https://github.com/replikativ/datahike)) with a single function call.
 
-## Usage
+## Quickstart
 
 [![Clojars Project](https://img.shields.io/clojars/v/io.replikativ/datahike-csv-loader.svg)](https://clojars.org/io.replikativ/datahike-csv-loader) [![cljdoc badge](https://cljdoc.org/badge/io.replikativ/datahike-csv-loader)](https://cljdoc.org/d/io.replikativ/datahike-csv-loader)
 
@@ -34,13 +34,13 @@ Loads CSV data into [Datahike](https://datahike.io) (or [on GitHub](https://gith
 
 Reads, parses, and loads data from data.csv into the Datahike database having (optionally specified) config `cfg`, with likewise optional schema-related options for the corresponding attributes. Each column represents an attribute, with keywordized column name as attribute ident, or otherwise, an element in a heterogeneous or homogeneous tuple (more on tuples below).
 
-### Datahike config
+## Datahike config
 
 If `cfg` is omitted, and the last argument:
 1. is also absent, or has empty `:schema`, `:ref-map`, and `:composite-tuple-map`, `cfg` is inferred to be `{:schema-flexibility :read}`.
 2. has a non-empty value for one or more of `:schema`, `:ref-map`, and `:composite-tuple-map`, `cfg` is inferred to be `{}`, i.e. the default.
 
-### Schema options
+## Schema options
 
 Each file is assumed to represent attributes for one entity "type", whether new or existing: e.g. a student with columns _student/name_, _student/id_. This also means that attribute data for a single "type" can be loaded from multiple files: for example, another file with columns _student/id_ and _student/course_ can be loaded later.
 
@@ -67,11 +67,11 @@ Ref- and tuple-valued attributes, i.e. those with `:db/valueType` `:db.type/ref`
 
 Unspecified schema attribute values are defaults or inferred from the data given: for instance, except with `:db.type/ref` and `:db.type/tuple`, `:db/valueType` is inferred. Note also that only one cardinality-many attribute is allowed per file for semantic reasons. Examples in the rest of this document use the partial `:schema` specification style for brevity.
 
-#### Attributes already in schema
+### Attributes already in schema
 
 `load-csv` also handles data for attributes already present in the schema, e.g. if a file with identical or overlapping column names was loaded earlier, in which case the corresponding columns should be left out of `:schema`, although they would be excluded anyway from any schema transaction before the data proper is loaded. That said, this behaviour hasn't yet been tested, so caution is advised.
 
-#### `:ref-map`
+### `:ref-map`
 
 Data in a reference-valued attribute column must consist of domain identifier (i.e. an attribute with `:db.unique/identity`) values for entities already present in the database; these are automatically converted into entity IDs. For example:
 
@@ -99,7 +99,7 @@ With CSV contents such as:
 
 Support for loading entity IDs directly can be added if observations of such use cases in the wild are reported.
 
-#### `:tuple-map` and `:composite-tuple-map`
+### `:tuple-map` and `:composite-tuple-map`
 
 First: an [introduction](https://docs.datomic.com/on-prem/schema/schema.html#tuples) to tuples for the uninitiated.
 
