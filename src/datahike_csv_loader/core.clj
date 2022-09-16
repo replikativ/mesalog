@@ -257,9 +257,13 @@
          conn (d/connect cfg)
          db-schema (d/schema @conn)
          ds (create-dataset csv-file ref-map @conn)
-         schema (if (map? schema)
-                  (extract-schema schema ref-map tuple-map composite-tuple-map ds db-schema)
-                  (remove #((:db/ident %) db-schema) schema))]
+         schema (or (not-empty schema) {})
+         schema (if (= (:schema-flexibility (:config @conn))
+                       :write)
+                  (->> (if (map? schema)
+                         (extract-schema schema ref-map tuple-map composite-tuple-map ds db-schema)
+                         schema)
+                       (remove #((:db/ident %) db-schema))))]
      (if (not-empty schema)
        (d/transact conn schema))
      (->> (dataset-for-transact ds (d/reverse-schema @conn) tuple-map)

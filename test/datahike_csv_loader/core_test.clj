@@ -246,17 +246,31 @@
 
 (use-fixtures :each datahike-csv-loader-test-fixture)
 
+(defn- test-csv-to-datahike-with-optional-config-and-no-schema [agencies-filename]
+  (let [agencies-from-csv (process-agencies-from-csv agencies-filename)
+        agency-attrs (keys (first agencies-from-csv))
+        exp (mapv #(utils/rm-empty-elements % {} false)
+                  agencies-from-csv)
+        conn (d/connect)]
+    (is (= (set exp)
+           (set (->> (d/q '[:find [?e ...] :where [?e :agency/id _]]
+                          @conn)
+                     ; relies on missing and non-missing fields being the same in all rows
+                     (d/pull-many @conn (keys (first exp)))))))
+    (when (= (:schema-flexibility (:config @conn))
+             :write)
+      (testing "Schema attributes correctly transacted"
+        (test-schema-attribute-vals (d/schema @conn) (set agency-attrs) {})))))
+
+(deftest test-csv-to-datahike-without-config-and-schema
+  (testing "Test csv-to-datahike without config and schema"
+    (load-csv agencies-filename)
+    (test-csv-to-datahike-with-optional-config-and-no-schema agencies-filename)))
+
 (deftest test-csv-to-datahike-without-schema
   (testing "Test csv-to-datahike without schema"
-    (load-csv agencies-filename)
-    (let [exp (->> (process-agencies-from-csv agencies-filename)
-                   (mapv #(utils/rm-empty-elements % {} false)))
-          cfg {:schema-flexibility :read}
-          conn (d/connect cfg)]
-      (is (= (set exp)
-             (set (->> (d/q '[:find [?e ...] :where [?e :agency/id _]]
-                            @conn)
-                       (d/pull-many @conn (keys (first exp))))))))))
+    (load-csv agencies-filename {})
+    (test-csv-to-datahike-with-optional-config-and-no-schema agencies-filename)))
 
 (defn- get-db-ids [id-attr from-csv db]
   (->> (map (fn [r] [id-attr (id-attr r)]) from-csv)
