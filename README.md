@@ -130,8 +130,9 @@ As implied above, the `db/valueType` of tuple elements is inferred unless specif
 datahike-csv-loader currently doesn't support:
 1. Loading CSV files that don't fit into memory.
 2. Variable-length homogeneous tuples.
+3. Excluding columns from the import.
 
-We plan to address these shortcomings, and any others that arise, if they prove to be substantial.
+We are currently working on #1 and #3. We will address #2 and any other limitations that arise as necessary.
 
 ## License
 
