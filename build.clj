@@ -6,7 +6,7 @@
             [clojure.string :as str])
   (:import (clojure.lang ExceptionInfo)))
 
-(def lib 'io.replikativ/datahike-csv-loader)
+(def lib 'io.replikativ/tablehike)
 (def version (format "0.1.%s" (b/git-count-revs nil)))
 (def current-commit (gh/current-commit))
 (def class-dir "target/classes")

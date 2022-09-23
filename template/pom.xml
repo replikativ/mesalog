@@ -2,10 +2,10 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.replikativ</groupId>
-  <artifactId>datahike-csv-loader</artifactId>
-  <name>io.replikativ/datahike-csv-loader</name>
+  <artifactId>tablehike</artifactId>
+  <name>io.replikativ/tablehike</name>
   <description>CSV data loader for Datahike.</description>
-  <url>https://github.com/replikativ/datahike-csv-loader</url>
+  <url>https://github.com/replikativ/tablehike</url>
   <licenses>
     <license>
       <name>Eclipse Public License</name>
@@ -13,8 +13,8 @@
     </license>
   </licenses>
   <scm>
-    <url>https://github.com/replikativ/datahike-csv-loader</url>
-    <connection>scm:git:git://github.com/replikativ/datahike-csv-loader.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/replikativ/datahike-csv-loader.git</developerConnection>
+    <url>https://github.com/replikativ/tablehike</url>
+    <connection>scm:git:git://github.com/replikativ/tablehike.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/replikativ/tablehike.git</developerConnection>
   </scm>
 </project>
