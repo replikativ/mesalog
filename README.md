@@ -1,6 +1,6 @@
 # tablehike
 
-Loads CSV data into [Datahike](https://datahike.io) (or [on GitHub](https://github.com/replikativ/datahike)) with a single function call.
+Loads CSV data into [Datahike](https://datahike.io) (see also [GitHub](https://github.com/replikativ/datahike)) with a single function call.
 
 ## Quickstart
 
@@ -132,10 +132,16 @@ As implied above, the `db/valueType` of tuple elements is inferred unless specif
 2. Variable-length homogeneous tuples.
 3. Excluding columns from the import.
 
-We are currently working on #1 and #3. We will address #2 and any other limitations that arise as necessary.
+We are currently working on #1 and #3, and will address #2 and any other limitations that arise as necessary.
+
+## Future work
+
+We may:
+1. Add Datahike-to-CSV export functionality.
+2. Extend functionality to other tabular data formats.
 
 ## License
 
-Copyright © 2022 Yee Fay Lim.
+Copyright © 2022 Yee Fay Lim
 
 Distributed under the Eclipse Public License version 1.0.
