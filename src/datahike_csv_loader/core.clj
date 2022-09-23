@@ -1,7 +1,7 @@
-(ns datahike-csv-loader.core
+(ns tablehike.core
   (:require [clojure.string :as str]
             [datahike.api :as d]
-            [datahike-csv-loader.utils :as utils]
+            [tablehike.utils :as utils]
             [tablecloth.api :as tc]))
 
 (defn- tc-to-datahike-types [datatype]

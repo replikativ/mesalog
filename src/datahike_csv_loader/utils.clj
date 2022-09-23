@@ -1,4 +1,4 @@
-(ns ^:no-doc datahike-csv-loader.utils)
+(ns ^:no-doc tablehike.utils)
 
 (defn rm-empty-elements [coll init init-transient?]
   (reduce-kv (fn [m k v]

@@ -1,35 +1,35 @@
-# datahike-csv-loader
+# tablehike
 
 Loads CSV data into [Datahike](https://datahike.io) (or [on GitHub](https://github.com/replikativ/datahike)) with a single function call.
 
 ## Quickstart
 
-[![Clojars Project](https://img.shields.io/clojars/v/io.replikativ/datahike-csv-loader.svg)](https://clojars.org/io.replikativ/datahike-csv-loader) [![cljdoc badge](https://cljdoc.org/badge/io.replikativ/datahike-csv-loader)](https://cljdoc.org/d/io.replikativ/datahike-csv-loader)
+[![Clojars Project](https://img.shields.io/clojars/v/io.replikativ/tablehike.svg)](https://clojars.org/io.replikativ/tablehike) [![cljdoc badge](https://cljdoc.org/badge/io.replikativ/tablehike)](https://cljdoc.org/d/io.replikativ/tablehike)
 
 ``` clojure
 (require '[datahike.api :as d]
-         '[datahike-csv-loader.core :as dcsv])
+         '[tablehike.core :as th])
 
-(dcsv/load-csv "data.csv")
+(th/load-csv "data.csv")
 
 ;; or
 (def cfg {:store ...})
-(dcsv/load-csv "data.csv" cfg)
+(th/load-csv "data.csv" cfg)
 
 ;; or (map contents elided here and described below)
-(dcsv/load-csv "data.csv" cfg {:schema [{:db/ident :name
-                                         ...}
-                                        ...]
-                               :ref-map {...}
-                               :tuple-map {...}
-                               :composite-tuple-map {...}})
+(th/load-csv "data.csv" cfg {:schema [{:db/ident :name
+                                       ...}
+                                      ...]
+                             :ref-map {...}
+                             :tuple-map {...}
+                             :composite-tuple-map {...}})
 
 ;; or (ditto)
-(dcsv/load-csv "data.csv" cfg {:schema {:unique-id #{...}
-                                        ...}
-                               :ref-map {...}
-                               :tuple-map {...}
-                               :composite-tuple-map {...}})
+(th/load-csv "data.csv" cfg {:schema {:unique-id #{...}
+                                      ...}
+                             :ref-map {...}
+                             :tuple-map {...}
+                             :composite-tuple-map {...}})
 ```
 
 Reads, parses, and loads data from data.csv into the Datahike database having (optionally specified) config `cfg`, with likewise optional schema-related options for the corresponding attributes. Each column represents an attribute, with keywordized column name as attribute ident, or otherwise, an element in a heterogeneous or homogeneous tuple (more on tuples below).
@@ -82,9 +82,9 @@ Data in a reference-valued attribute column must consist of domain identifier (i
 (d/transact conn [{:course/id "CMSC101"
                    :course/name "Intro. to CS"}
                    ...])
-(dcsv/load-csv "students.csv" cfg {:schema {:unique-id #{:student/id}
-                                            :cardinality-many #{:student/course}}
-                                   :ref-map {:student/course :course/id}})
+(th/load-csv "students.csv" cfg {:schema {:unique-id #{:student/id}
+                                          :cardinality-many #{:student/course}}
+                                 :ref-map {:student/course :course/id}})
 ;; values for :student/course will consist of their corresponding course entity IDs 
 ```
 With CSV contents such as:
@@ -127,7 +127,7 @@ As implied above, the `db/valueType` of tuple elements is inferred unless specif
 
 ## Current limitations
 
-datahike-csv-loader currently doesn't support:
+`tablehike` currently doesn't support:
 1. Loading CSV files that don't fit into memory.
 2. Variable-length homogeneous tuples.
 3. Excluding columns from the import.

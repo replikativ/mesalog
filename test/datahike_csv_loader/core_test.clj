@@ -1,12 +1,12 @@
-(ns datahike-csv-loader.core-test
+(ns tablehike.core-test
   (:require [clojure.java.io :as io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
             [charred.api :as charred]
             [clojure.test :refer [deftest testing is use-fixtures]]
             [datahike.api :as d]
-            [datahike-csv-loader.utils :as utils]
-            [datahike-csv-loader.core :refer :all]
+            [tablehike.utils :as utils]
+            [tablehike.core :refer :all]
             [tablecloth.api :as tc]))
 
 (def ^:private datahike-cfg {:store {:backend :mem
@@ -240,11 +240,11 @@
                 (update :agency/phone phone-fn))))
         (csv-to-maps filename)))
 
-(defn- datahike-csv-loader-test-fixture [f]
+(defn- tablehike-test-fixture [f]
   (f)
   (d/delete-database datahike-cfg))
 
-(use-fixtures :each datahike-csv-loader-test-fixture)
+(use-fixtures :each tablehike-test-fixture)
 
 (defn- test-csv-to-datahike-with-optional-config-and-no-schema [agencies-filename]
   (let [agencies-from-csv (process-agencies-from-csv agencies-filename)
