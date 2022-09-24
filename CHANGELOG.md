@@ -12,3 +12,9 @@
 
 ### Added
 - Full user specification of schema possible using alternative form for `:schema` to that for partial specification.
+
+
+## [0.1.61] - 2022-09-22
+
+### Changed
+- Library name: from "datahike-csv-loader" to "tablehike"
