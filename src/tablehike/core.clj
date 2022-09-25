@@ -109,11 +109,6 @@
                        (and (some? ref-cols)
                             (pos? (count ref-cols))) (dataset-with-ref-cols ref-cols db))))
 
-(defn- column-info-maps [ds cols]
-  (-> (tc/select-columns ds cols)
-      get-column-info
-      (tc/rows :as-maps)))
-
 (defn- required-schema-attrs
   ([col-name cardinality-many?]
    (required-schema-attrs col-name cardinality-many? nil))
@@ -146,7 +141,7 @@
                                col-dtype)
         (optional-schema-attrs schema col-name))))
 
-(defn- extract-schema [col-schema ref-map tuple-map composite-tuple-map ds db-schema]
+(defn- extract-schema [col-schema ref-map tuple-map composite-tuple-map coltypes db-schema]
   (if-let [cardinality-many-attrs (:cardinality-many col-schema)]
     (when (> (count cardinality-many-attrs) 1)
       (throw (IllegalArgumentException. "Each file is allowed at most one cardinality-many attribute"))))
@@ -154,23 +149,22 @@
                                           (assoc :db/tupleAttrs (% composite-tuple-map)))
                                      (keys composite-tuple-map))
         tuple-schemas (map (fn [k]
-                             (let [tuple-dtypes (->> (column-info-maps ds (k tuple-map))
-                                                     (mapv #(tc-to-datahike-types (:datatype %))))
+                             (let [tuple-dtypes (->> (map #(coltypes %) (k tuple-map))
+                                                     (mapv #(tc-to-datahike-types %)))
                                    tuple-schema (column-schema-attrs col-schema k :db.type/tuple)]
                                (if (apply = tuple-dtypes)
                                  (assoc tuple-schema :db/tupleType (first tuple-dtypes))
                                  (assoc tuple-schema :db/tupleTypes tuple-dtypes))))
                            (keys tuple-map))
         tuple-cols-to-drop (apply concat (vals tuple-map))
-        include-cols (-> (filter #(% db-schema) (tc/column-names ds))
-                         (into tuple-cols-to-drop)
-                         (conj :db/id)
-                         set
-                         complement)]
-    (->> (column-info-maps ds include-cols)
-         (mapv #(let [col-name (:name %)
-                      dtype (if (col-name ref-map) :db.type/ref (:datatype %))]
-                  (column-schema-attrs col-schema col-name dtype)))
+        rm-cols (-> (filter #(% db-schema) (keys coltypes))
+                    (into tuple-cols-to-drop)
+                    (conj :db/id)
+                    set)]
+    (->> (remove (fn [[col _]] (col rm-cols)) coltypes)
+         (mapv (fn [[col dtype]]
+                 (let [dtype (if (col ref-map) :db.type/ref dtype)]
+                   (column-schema-attrs col-schema col dtype))))
          (concat composite-tuple-schemas tuple-schemas))))
 
 (defn- merge-entity-rows [rows merge-attr]
@@ -255,13 +249,15 @@
          _ (if-not (d/database-exists? cfg)
              (d/create-database cfg))
          conn (d/connect cfg)
-         db-schema (d/schema @conn)
          ds (create-dataset csv-file ref-map @conn)
+         db-schema (d/schema @conn)
          schema (or (not-empty schema) {})
-         schema (if (= (:schema-flexibility (:config @conn))
-                       :write)
+         schema (when (= (:schema-flexibility (:config @conn))
+                         :write)
                   (->> (if (map? schema)
-                         (extract-schema schema ref-map tuple-map composite-tuple-map ds db-schema)
+                         (let [cols-info (get-column-info ds)
+                               coltypes (zipmap (:name cols-info) (:datatype cols-info))]
+                           (extract-schema schema ref-map tuple-map composite-tuple-map coltypes db-schema))
                          schema)
                        (remove #((:db/ident %) db-schema))))]
      (if (not-empty schema)
