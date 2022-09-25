@@ -29,9 +29,8 @@
                ref-cols)
        (into {})))
 
-(defn- convert-ref-col-types [ds cols-info self-ref-cols other-ref-cols schema]
-  (let [coltypes (zipmap (:name cols-info) (:datatype cols-info))
-        self-ref-types (reduce (fn [m [k v]]
+(defn- convert-ref-col-types [ds coltypes self-ref-cols other-ref-cols schema]
+  (let [self-ref-types (reduce (fn [m [k v]]
                                  (->> (v coltypes)
                                       (assoc-mismatched-ref-type m k coltypes)))
                                {}
@@ -85,29 +84,22 @@
               refcols)
          (tc/update-columns ds refcols))))
 
-(defn- handle-ref-cols [ds cols-info self-ref-cols foreign-ref-cols db]
+(defn- handle-ref-cols [ds coltypes self-ref-cols foreign-ref-cols db]
   (let [ds (->> (d/schema db)
-                (convert-ref-col-types ds cols-info self-ref-cols foreign-ref-cols)
+                (convert-ref-col-types ds coltypes self-ref-cols foreign-ref-cols)
                 add-tempid-col)]
     (update-ref-cols ds (refs-to-ids ds self-ref-cols foreign-ref-cols db))))
 
-(defn- dataset-with-ref-cols [ds ref-cols db]
-  (let [cols-info (get-column-info ds)
-        self-ref-cols (filter-ref-cols ref-cols (set (:name cols-info)))
+(defn- dataset-with-ref-cols [ds coltypes ref-cols db]
+  (let [self-ref-cols (filter-ref-cols ref-cols (set (keys coltypes)))
         schema (d/schema db)
         foreign-ref-cols (->> (remove (fn [[k v]] (k self-ref-cols))
                                       ref-cols)
                               (into {}))]
     (if (or (pos? (count self-ref-cols))
             (pos? (count foreign-ref-cols)))
-      (handle-ref-cols ds cols-info self-ref-cols foreign-ref-cols db)
+      (handle-ref-cols ds coltypes self-ref-cols foreign-ref-cols db)
       ds)))
-
-(defn- create-dataset
-  ([csv] (create-dataset csv nil nil))
-  ([csv ref-cols db] (cond-> (tc/dataset csv {:key-fn keyword})
-                       (and (some? ref-cols)
-                            (pos? (count ref-cols))) (dataset-with-ref-cols ref-cols db))))
 
 (defn- required-schema-attrs
   ([col-name cardinality-many?]
@@ -166,6 +158,16 @@
                  (let [dtype (if (col ref-map) :db.type/ref dtype)]
                    (column-schema-attrs col-schema col dtype))))
          (concat composite-tuple-schemas tuple-schemas))))
+
+(defn- schema-for-transact [{:keys [schema ref-map tuple-map composite-tuple-map] :as schema-opts} coltypes db]
+  (when (= (:schema-flexibility (:config db))
+           :write)
+    (let [schema (or (not-empty schema) {})
+          db-schema (d/schema db)]
+      (->> (if (map? schema)
+             (extract-schema schema ref-map tuple-map composite-tuple-map coltypes db-schema)
+             schema)
+           (remove #((:db/ident %) db-schema))))))
 
 (defn- merge-entity-rows [rows merge-attr]
   (reduce (fn [vals row]
@@ -242,25 +244,21 @@
    (load-csv csv-file nil {}))
   ([csv-file cfg]
    (load-csv csv-file cfg {}))
-  ([csv-file cfg {:keys [schema ref-map tuple-map composite-tuple-map]}]
+  ([csv-file cfg {:keys [schema ref-map tuple-map composite-tuple-map] :as schema-opts}]
    (let [cfg (or cfg (if (and (empty? schema) (empty? ref-map) (empty? composite-tuple-map))
                        {:schema-flexibility :read}
                        {}))
          _ (if-not (d/database-exists? cfg)
              (d/create-database cfg))
          conn (d/connect cfg)
-         ds (create-dataset csv-file ref-map @conn)
-         db-schema (d/schema @conn)
-         schema (or (not-empty schema) {})
-         schema (when (= (:schema-flexibility (:config @conn))
-                         :write)
-                  (->> (if (map? schema)
-                         (let [cols-info (get-column-info ds)
-                               coltypes (zipmap (:name cols-info) (:datatype cols-info))]
-                           (extract-schema schema ref-map tuple-map composite-tuple-map coltypes db-schema))
-                         schema)
-                       (remove #((:db/ident %) db-schema))))]
-     (if (not-empty schema)
+         ds (tc/dataset csv-file {:key-fn keyword})
+         cols-info (get-column-info ds)
+         coltypes (zipmap (:name cols-info) (:datatype cols-info))
+         schema (schema-for-transact schema-opts coltypes @conn)]
+     (when (not-empty schema)
        (d/transact conn schema))
-     (->> (dataset-for-transact ds (d/reverse-schema @conn) tuple-map)
+     (->> (dataset-for-transact (cond-> ds
+                                  (not-empty ref-map) (dataset-with-ref-cols coltypes ref-map @conn))
+                                (d/reverse-schema @conn)
+                                tuple-map)
           (d/transact conn)))))
