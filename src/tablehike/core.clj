@@ -2,7 +2,8 @@
   (:require [clojure.string :as str]
             [datahike.api :as d]
             [tablehike.utils :as utils]
-            [tablecloth.api :as tc]))
+            [tablecloth.api :as tc]
+            [tech.v3.dataset.io.csv :as csv]))
 
 (defn- tc-to-datahike-types [datatype]
   (case datatype
@@ -244,21 +245,26 @@
    (load-csv csv-file nil {}))
   ([csv-file cfg]
    (load-csv csv-file cfg {}))
-  ([csv-file cfg {:keys [schema ref-map tuple-map composite-tuple-map] :as schema-opts}]
+  ([csv-file cfg schema-opts]
+   (load-csv csv-file cfg schema-opts nil))
+  ([csv-file cfg {:keys [schema ref-map tuple-map composite-tuple-map] :as schema-opts} batch-size]
    (let [cfg (or cfg (if (and (empty? schema) (empty? ref-map) (empty? composite-tuple-map))
                        {:schema-flexibility :read}
                        {}))
          _ (if-not (d/database-exists? cfg)
              (d/create-database cfg))
          conn (d/connect cfg)
-         ds (tc/dataset csv-file {:key-fn keyword})
-         cols-info (get-column-info ds)
+         ds-seq (->> (cond-> {:key-fn keyword}
+                       batch-size (assoc :batch-size batch-size))
+                     (csv/csv->dataset-seq csv-file))
+         cols-info (get-column-info (first ds-seq))
          coltypes (zipmap (:name cols-info) (:datatype cols-info))
          schema (schema-for-transact schema-opts coltypes @conn)]
      (when (not-empty schema)
        (d/transact conn schema))
-     (->> (dataset-for-transact (cond-> ds
-                                  (not-empty ref-map) (dataset-with-ref-cols coltypes ref-map @conn))
-                                (d/reverse-schema @conn)
-                                tuple-map)
-          (d/transact conn)))))
+     (doseq [ds ds-seq]
+       (->> (dataset-for-transact (cond-> ds
+                                    (not-empty ref-map) (dataset-with-ref-cols coltypes ref-map @conn))
+                                  (d/reverse-schema @conn)
+                                  tuple-map)
+            (d/transact conn))))))

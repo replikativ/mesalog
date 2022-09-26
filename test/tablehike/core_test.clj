@@ -235,7 +235,7 @@
 
 (defn- process-agencies-from-csv [filename]
   (mapv (fn [a]
-          (let [phone-fn #(if (str/blank? %) nil (read-string %))]
+          (let [phone-fn #(if (str/blank? %) nil %)]
             (-> (update a :agency/id read-string)
                 (update :agency/phone phone-fn))))
         (csv-to-maps filename)))
@@ -256,7 +256,7 @@
            (set (->> (d/q '[:find [?e ...] :where [?e :agency/id _]]
                           @conn)
                      ; relies on missing and non-missing fields being the same in all rows
-                     (d/pull-many @conn (keys (first exp)))))))
+                     (d/pull-many @conn agency-attrs)))))
     (when (= (:schema-flexibility (:config @conn))
              :write)
       (testing "Schema attributes correctly transacted"
@@ -277,22 +277,28 @@
        (d/pull-many db [:db/id])
        (mapv :db/id)))
 
-(defn- test-agency-csv-to-datahike [schema-args]
-  (load-csv agencies-filename datahike-cfg schema-args)
-  ; workaround for stale connection bug (see also test-agency-route-trip-with-* tests)
-  (let [conn (d/connect datahike-cfg)
-        agencies-from-csv (process-agencies-from-csv agencies-filename)
-        agency-attrs (keys (first agencies-from-csv))]
-    (if (map? (:schema schema-args))
-      (testing "Unique identity, unique value, and indexed schema attributes transacted"
-        (test-schema-attribute-vals (d/schema @conn) (set agency-attrs) agency-simple-schema)))
-    (testing "Agency data loaded correctly"
-      (let [ids (d/q '[:find [?e ...] :where [?e :agency/id _]]
-                     @conn)]
-        (is (= (->> agencies-from-csv
-                    (mapv #(utils/rm-empty-elements % {} false)))
-               (->> (get-db-ids :agency/id agencies-from-csv @conn)
-                    (d/pull-many @conn agency-attrs))))))))
+(defn- test-agency-csv-to-datahike
+  ([schema-args]
+   (test-agency-csv-to-datahike schema-args nil))
+  ([schema-args batch-size]
+   (load-csv agencies-filename datahike-cfg schema-args batch-size)
+   ; workaround for stale connection bug (see also test-agency-route-trip-with-* tests)
+   (let [conn (d/connect datahike-cfg)
+         agencies-from-csv (process-agencies-from-csv agencies-filename)
+         agency-attrs (keys (first agencies-from-csv))]
+     (if (map? (:schema schema-args))
+       (testing "Unique identity, unique value, and indexed schema attributes transacted"
+         (test-schema-attribute-vals (d/schema @conn) (set agency-attrs) agency-simple-schema)))
+     (testing "Agency data loaded correctly"
+       (let [ids (d/q '[:find [?e ...] :where [?e :agency/id _]]
+                      @conn)]
+         (is (= (->> agencies-from-csv
+                     (mapv #(utils/rm-empty-elements % {} false)))
+                (->> (get-db-ids :agency/id agencies-from-csv @conn)
+                     (d/pull-many @conn agency-attrs)))))))))
+
+(deftest test-csv-to-datahike-chunked
+  (test-agency-csv-to-datahike {:schema agency-schema} 10))
 
 (defn- test-route-csv-to-datahike [schema-args]
   (load-csv routes-filename datahike-cfg schema-args)
