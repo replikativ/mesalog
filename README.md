@@ -16,23 +16,26 @@ Loads CSV data into [Datahike](https://datahike.io) (see also [GitHub](https://g
 (def cfg {:store ...})
 (th/load-csv "data.csv" cfg)
 
-;; or (map contents elided here and described below)
-(th/load-csv "data.csv" cfg {:schema [{:db/ident :name
-                                       ...}
-                                      ...]
-                             :ref-map {...}
-                             :tuple-map {...}
-                             :composite-tuple-map {...}})
+;; or with schema-opts using one of two alternative schema specifications
+;; (map contents elided here and described below)
+(def schema [{:db/ident :name
+              ...}
+             ...])
+;; or
+(def schema {:unique-id #{...}
+             ...})
+(def schema-opts {:schema schema
+                  :ref-map {...}
+                  :tuple-map {...}
+                  :composite-tuple-map {...}})
+(th/load-csv "data.csv" cfg schema-opts)
 
-;; or (ditto)
-(th/load-csv "data.csv" cfg {:schema {:unique-id #{...}
-                                      ...}
-                             :ref-map {...}
-                             :tuple-map {...}
-                             :composite-tuple-map {...}})
+;; or with batch size specified for chunking (default value 128,000)
+(def batch-size 64000)  ; e.g.
+(th/load-csv "data.csv" cfg schema-opts batch-size)
 ```
 
-Reads, parses, and loads data from data.csv into the Datahike database having (optionally specified) config `cfg`, with likewise optional schema-related options for the corresponding attributes. Each column represents an attribute, with keywordized column name as attribute ident, or otherwise, an element in a heterogeneous or homogeneous tuple (more on tuples below).
+Reads, parses, and loads data from data.csv into the Datahike database having (optionally specified) config `cfg`. The remaining arguments are likewise optional: schema-related options for the corresponding attributes, and batch size for chunking ([default value 128,000](https://techascent.github.io/tech.ml.dataset/tech.v3.dataset.io.csv.html#var-csv-.3Edataset-seq)). Each column represents an attribute, with keywordized column name as attribute ident, or otherwise, an element in a heterogeneous or homogeneous tuple (more on tuples below).
 
 ## Datahike config
 
@@ -125,14 +128,17 @@ Here, the data in these columns are merged and transacted only as `:station/coor
 
 As implied above, the `db/valueType` of tuple elements is inferred unless specified in `:schema`.
 
+## Chunking for large datasets
+
+File loading is chunked (with a default batch size of 128,000 lines) to support datasets potentially too large to fit within memory.
+
 ## Current limitations
 
 `tablehike` currently doesn't support:
-1. Loading CSV files that don't fit into memory.
-2. Variable-length homogeneous tuples.
-3. Excluding columns from the import.
+1. Variable-length homogeneous tuples.
+2. Excluding columns from the import.
 
-We are currently working on #1 and #3, and will address #2 and any other limitations that arise as necessary.
+We are currently working on #2, and will address #2 and any other limitations that arise as necessary.
 
 ## Future work
 
