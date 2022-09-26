@@ -246,7 +246,7 @@
 
 (use-fixtures :each tablehike-test-fixture)
 
-(defn- test-csv-to-datahike-with-optional-config-and-no-schema [agencies-filename]
+(defn- test-load-csv-with-optional-config-and-no-schema [agencies-filename]
   (let [agencies-from-csv (process-agencies-from-csv agencies-filename)
         agency-attrs (keys (first agencies-from-csv))
         exp (mapv #(utils/rm-empty-elements % {} false)
@@ -262,24 +262,24 @@
       (testing "Schema attributes correctly transacted"
         (test-schema-attribute-vals (d/schema @conn) (set agency-attrs) {})))))
 
-(deftest test-csv-to-datahike-without-config-and-schema
-  (testing "Test csv-to-datahike without config and schema"
+(deftest test-load-csv-without-config-and-schema
+  (testing "Test load-csv without config and schema"
     (load-csv agencies-filename)
-    (test-csv-to-datahike-with-optional-config-and-no-schema agencies-filename)))
+    (test-load-csv-with-optional-config-and-no-schema agencies-filename)))
 
-(deftest test-csv-to-datahike-without-schema
-  (testing "Test csv-to-datahike without schema"
+(deftest test-load-csv-without-schema
+  (testing "Test load-csv without schema"
     (load-csv agencies-filename {})
-    (test-csv-to-datahike-with-optional-config-and-no-schema agencies-filename)))
+    (test-load-csv-with-optional-config-and-no-schema agencies-filename)))
 
 (defn- get-db-ids [id-attr from-csv db]
   (->> (map (fn [r] [id-attr (id-attr r)]) from-csv)
        (d/pull-many db [:db/id])
        (mapv :db/id)))
 
-(defn- test-agency-csv-to-datahike
+(defn- test-agency-load-csv
   ([schema-args]
-   (test-agency-csv-to-datahike schema-args nil))
+   (test-agency-load-csv schema-args nil))
   ([schema-args batch-size]
    (load-csv agencies-filename datahike-cfg schema-args batch-size)
    ; workaround for stale connection bug (see also test-agency-route-trip-with-* tests)
@@ -297,10 +297,10 @@
                 (->> (get-db-ids :agency/id agencies-from-csv @conn)
                      (d/pull-many @conn agency-attrs)))))))))
 
-(deftest test-csv-to-datahike-chunked
-  (test-agency-csv-to-datahike {:schema agency-schema} 10))
+(deftest test-load-csv-chunked
+  (test-agency-load-csv {:schema agency-schema} 10))
 
-(defn- test-route-csv-to-datahike [schema-args]
+(defn- test-route-load-csv [schema-args]
   (load-csv routes-filename datahike-cfg schema-args)
   ; workaround for stale connection bug (see also test-agency-route-trip-with-* tests)
   (let [conn (d/connect datahike-cfg)
@@ -326,7 +326,7 @@
                      routes-csv)
                routes-minus-agency-id))))))
 
-(defn- test-route-trip-csv-to-datahike [schema-args]
+(defn- test-route-trip-load-csv [schema-args]
   (load-csv route-trips-filename datahike-cfg schema-args)
   ; workaround for stale connection bug (see also test-agency-route-trip-with-* tests)
   (let [conn (d/connect datahike-cfg)
@@ -355,15 +355,15 @@
 
 ; Stale connection bug => can't create connection then pass it to functions
 (deftest test-agency-route-trip-with-simple-schema
-  (test-agency-csv-to-datahike {:schema agency-simple-schema})
-  (test-route-csv-to-datahike {:schema route-simple-schema, :ref-map route-ref-map})
-  (test-route-trip-csv-to-datahike {:schema route-trip-simple-schema}))
+  (test-agency-load-csv {:schema agency-simple-schema})
+  (test-route-load-csv {:schema route-simple-schema, :ref-map route-ref-map})
+  (test-route-trip-load-csv {:schema route-trip-simple-schema}))
 
 ; Stale connection bug => can't create connection then pass it to functions
 (deftest test-agency-route-trip-with-schema
-  (test-agency-csv-to-datahike {:schema agency-schema})
-  (test-route-csv-to-datahike {:schema route-schema, :ref-map route-ref-map})
-  (test-route-trip-csv-to-datahike {:schema route-trip-schema}))
+  (test-agency-load-csv {:schema agency-schema})
+  (test-route-load-csv {:schema route-schema, :ref-map route-ref-map})
+  (test-route-trip-load-csv {:schema route-trip-schema}))
 
 (defn- test-refs-in-schema [schema-args]
   (testing "IllegalArgumentException is thrown when attribute not present in schema is referenced"
@@ -377,7 +377,7 @@
   (test-refs-in-schema {:schema  route-schema
                         :ref-map route-ref-map}))
 
-(defn- test-stop-csv-to-datahike [levels-schema-args stops-schema-args]
+(defn- test-stop-load-csv [levels-schema-args stops-schema-args]
   (load-csv levels-filename datahike-cfg levels-schema-args)
   (load-csv stops-filename datahike-cfg stops-schema-args)
   (let [conn (d/connect datahike-cfg)
@@ -415,15 +415,15 @@
                      stops-csv)
                (map dissoc-refs stops-dh)))))))
 
-(deftest test-stop-csv-to-datahike-with-simple-schema
-  (test-stop-csv-to-datahike {:schema level-simple-schema}
-                             {:schema stop-simple-schema, :ref-map stop-ref-map}))
+(deftest test-stop-load-csv-with-simple-schema
+  (test-stop-load-csv {:schema level-simple-schema}
+                      {:schema stop-simple-schema, :ref-map stop-ref-map}))
 
-(deftest test-stop-csv-to-datahike-with-schema
-  (test-stop-csv-to-datahike {:schema level-schema}
-                             {:schema stop-schema, :ref-map stop-ref-map}))
+(deftest test-stop-load-csv-with-schema
+  (test-stop-load-csv {:schema level-schema}
+                      {:schema stop-schema, :ref-map stop-ref-map}))
 
-(defn- test-heterogeneous-tuple-csv-to-datahike [schema-args]
+(defn- test-heterogeneous-tuple-load-csv [schema-args]
   (load-csv shapes-filename datahike-cfg schema-args)
   (let [conn (d/connect datahike-cfg)
         shapes-from-csv (->> (with-open [reader (io/reader shapes-filename)]
@@ -437,15 +437,15 @@
            (->> (d/pull-many @conn '[*] lookup-refs)
                 (map :shape/pt-lat-lon-sequence))))))
 
-(deftest test-heterogeneous-tuple-csv-to-datahike-with-simple-schema
-  (test-heterogeneous-tuple-csv-to-datahike {:schema shape-simple-schema-1
-                                             :tuple-map shape-tuple-map-1}))
+(deftest test-heterogeneous-tuple-load-csv-with-simple-schema
+  (test-heterogeneous-tuple-load-csv {:schema shape-simple-schema-1
+                                      :tuple-map shape-tuple-map-1}))
 
-(deftest test-heterogeneous-tuple-csv-to-datahike-with-schema
-  (test-heterogeneous-tuple-csv-to-datahike {:schema shape-schema-1
-                                             :tuple-map shape-tuple-map-1}))
+(deftest test-heterogeneous-tuple-load-csv-with-schema
+  (test-heterogeneous-tuple-load-csv {:schema shape-schema-1
+                                      :tuple-map shape-tuple-map-1}))
 
-(defn- test-composite-and-homogeneous-tuples-csv-to-datahike [schema-args]
+(defn- test-composite-and-homogeneous-tuples-load-csv [schema-args]
   (load-csv shapes-filename datahike-cfg schema-args)
   (let [conn (d/connect datahike-cfg)
         ids (d/q '[:find [?e ...] :where [?e :shape/id _]]
@@ -463,12 +463,12 @@
                            (dissoc :shape/pt-lon))
                       shapes-from-csv))))))
 
-(deftest test-composite-and-homogeneous-tuples-csv-to-datahike-with-simple-schema
-  (test-composite-and-homogeneous-tuples-csv-to-datahike {:schema shape-simple-schema-2
-                                                          :tuple-map shape-tuple-map-2
-                                                          :composite-tuple-map shape-composite-tuple-map}))
+(deftest test-composite-and-homogeneous-tuples-load-csv-with-simple-schema
+  (test-composite-and-homogeneous-tuples-load-csv {:schema shape-simple-schema-2
+                                                   :tuple-map shape-tuple-map-2
+                                                   :composite-tuple-map shape-composite-tuple-map}))
 
-(deftest test-composite-and-homogeneous-tuples-csv-to-datahike-with-schema
-  (test-composite-and-homogeneous-tuples-csv-to-datahike {:schema shape-schema-2
-                                                          :tuple-map shape-tuple-map-2
-                                                          :composite-tuple-map shape-composite-tuple-map}))
+(deftest test-composite-and-homogeneous-tuples-load-csv-with-schema
+  (test-composite-and-homogeneous-tuples-load-csv {:schema shape-schema-2
+                                                   :tuple-map shape-tuple-map-2
+                                                   :composite-tuple-map shape-composite-tuple-map}))
