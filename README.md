@@ -138,7 +138,7 @@ File loading is chunked (with a default batch size of 128,000 lines) to support 
 1. Variable-length homogeneous tuples.
 2. Excluding columns from the import.
 
-We are currently working on #2, and will address #2 and any other limitations that arise as necessary.
+We are currently working on #2, and will address #1 and any other limitations that arise as necessary.
 
 ## Future work
 
