@@ -13,8 +13,12 @@
 ### Added
 - Full user specification of schema possible using alternative form for `:schema` to that for partial specification.
 
-
 ## [0.1.61] - 2022-09-22
 
 ### Changed
 - Library name: from "datahike-csv-loader" to "tablehike"
+
+## [0.1.66] - 2022-09-26
+
+### Added
+- Support for chunking, for files too large to fit within memory
