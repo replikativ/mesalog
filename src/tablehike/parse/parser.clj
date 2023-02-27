@@ -114,7 +114,7 @@
     (or (nil? value)
         (.equals "" value)
         (identical? value :tech.v3.dataset/missing)
-        (and (string? value) (re-matches #"(?i)^n\/?a$" "N/a")))))
+        (and (string? value) (re-matches #"(?i)^n\/?a$" value)))))
 
 
 (defn fast-dtype [value]
