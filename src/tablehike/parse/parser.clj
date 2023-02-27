@@ -50,14 +50,18 @@
 
 
 (defn- wrap-parser-data
-  ([parser-dtype parse-fn missing-indexes failed-indexes failed-values]
-   (cond-> {:parser-dtype parser-dtype
+  ([column-name parser-dtype parse-fn
+    ^RoaringBitmap missing-indexes
+    ^RoaringBitmap failed-indexes
+    ^IMutList failed-values]
+   (cond-> {:column-name column-name
+            :parser-dtype parser-dtype
             :parse-fn parse-fn
             :missing-indexes missing-indexes}
      failed-indexes (merge {:failed-indexes failed-indexes
                             :failed-values failed-values})))
-  ([parser-dtype parse-fn missing-indexes]
-   (wrap-parser-data parser-dtype parse-fn missing-indexes nil nil)))
+  ([column-name parser-dtype parse-fn ^RoaringBitmap missing-indexes]
+   (wrap-parser-data column-name parser-dtype parse-fn missing-indexes nil nil)))
 
 
 (defn make-safe-parse-fn [parse-fn]
@@ -123,8 +127,7 @@
     (dtype/datatype value)))
 
 
-(deftype FixedTypeParser [parser-dtype
-                          parse-fn
+(deftype FixedTypeParser [column-name parser-dtype parse-fn
                           ^RoaringBitmap missing-indexes
                           ^RoaringBitmap failed-indexes
                           ^IMutList failed-values]
@@ -143,12 +146,12 @@
 
 
 (defn make-fixed-parser
-  ^PParser [parser-entry options]
+  ^PParser [column-name parser-entry options]
   (let [[dtype parse-fn]    (parser-description->dtype-fn-tuple parser-entry)
         failed-values       (dtype/make-container :list :object 0)
         failed-indexes      (bitmap/->bitmap)
         missing-indexes     (bitmap/->bitmap)]
-    (FixedTypeParser. dtype parse-fn missing-indexes failed-values failed-indexes)))
+    (FixedTypeParser. column-name dtype parse-fn missing-indexes failed-values failed-indexes)))
 
 
 (def default-parser-datatype-sequence
@@ -164,22 +167,21 @@
         n-elems (.size promotion-list)]
     (if (== start-idx -1)
       [:object nil]
-      (long (loop [idx (inc start-idx)]
-              (if (< idx n-elems)
-                (let [[parser-dtype parse-fn]
-                      (.get promotion-list idx)
-                      parsed-value (parse-fn value)]
-                  (if (= parsed-value parse-failure)
-                    (recur (inc idx))
-                    [parser-dtype parse-fn]))
-                [:object nil]))))))
+      (loop [idx (inc start-idx)]
+        (if (< idx n-elems)
+          (let [[parser-dtype parse-fn] (.get promotion-list idx)
+                parsed-value (parse-fn value)]
+            (if (= parsed-value parse-failure)
+              (recur (inc idx))
+              [parser-dtype parse-fn]))
+          [:object nil])))))
 
 
-(deftype PromotionalStringParser [^{:unsynchronized-mutable true} parser-dtype
+(deftype PromotionalStringParser [column-name
+                                  ^{:unsynchronized-mutable true} parser-dtype
                                   ^{:unsynchronized-mutable true} parse-fn
                                   ^RoaringBitmap missing-indexes
-                                  ^List promotion-list
-                                  column-name]
+                                  ^List promotion-list]
   PParser
   (inferType [_this idx value]
     (cond
@@ -201,18 +203,18 @@
               (format "`nil` parse function not allowed in promotional parser but found in column %s"
                       column-name)))))
   (getData [_this]
-    (wrap-parser-data parser-dtype parse-fn missing-indexes)))
+    (wrap-parser-data column-name parser-dtype parse-fn missing-indexes)))
 
 
 (defn promotional-string-parser
   (^PParser [column-name parser-datatype-sequence options]
    (let [first-dtype (first parser-datatype-sequence)]
-     (PromotionalStringParser. first-dtype
+     (PromotionalStringParser. column-name
+                               first-dtype
                                (default-coercers first-dtype)
                                (bitmap/->bitmap)
                                (mapv (juxt identity default-coercers)
-                                     parser-datatype-sequence)
-                               column-name)))
+                                     parser-datatype-sequence))))
   (^PParser [column-name options]
    (promotional-string-parser column-name default-parser-datatype-sequence options)))
 
@@ -235,21 +237,20 @@
                            nil (constantly nil))
         parser-descriptor (:parser-fn options)]
     (fn [col-idx]
-      (cond
-        (nil? parser-descriptor)
-        (default-parse-fn options)
-        (map? parser-descriptor)
-        (let [colname (col-idx->colname col-idx)
-              colname (if (empty? colname)
-                        (make-colname col-idx)
-                        colname)
-              col-parser-desc (or (get parser-descriptor colname)
-                                  (get parser-descriptor col-idx))]
-          (if col-parser-desc
+      (let [colname (col-idx->colname col-idx)
+            colname (if (empty? colname)
+                      (make-colname col-idx)
+                      colname)]
+        (cond
+          (nil? parser-descriptor)
+          (default-parse-fn colname options)
+          (map? parser-descriptor)
+          (if-let [col-parser-desc (or (get parser-descriptor colname)
+                                       (get parser-descriptor col-idx))]
             (make-fixed-parser col-parser-desc options)
-            (default-parse-fn options)))
-        :else
-        (make-fixed-parser parser-descriptor options)))))
+            (default-parse-fn colname options))
+          :else
+          (make-fixed-parser colname parser-descriptor options))))))
 
 
 (defn- options->col-idx-parse-context
