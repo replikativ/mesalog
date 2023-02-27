@@ -40,13 +40,13 @@
 
 
 (definterface PParser
-  (addValue [^long idx value])
+  (inferType [^long idx value])
   (getData []))
 
 
-(defn add-value!
+(defn infer-type!
   [^PParser p ^long idx value]
-  (.addValue p idx value))
+  (.inferType p idx value))
 
 
 (defn- wrap-parser-data
@@ -129,7 +129,7 @@
                           ^RoaringBitmap failed-indexes
                           ^IMutList failed-values]
   PParser
-  (addValue [_this idx value]
+  (inferType [_this idx value]
     (cond
       (missing-value? value)
       (.add missing-indexes (unchecked-int idx))
@@ -182,7 +182,7 @@
                                   ^List promotion-list
                                   column-name]
   PParser
-  (addValue [_this idx value]
+  (inferType [_this idx value]
     (cond
       (missing-value? value)
       (.add missing-indexes (unchecked-int idx))
@@ -289,7 +289,7 @@
              (reduce (hamf/indexed-accum
                       acc col-idx field
                       (-> (col-idx->parser col-idx)
-                          (add-value! row-idx field)))
+                          (infer-type! row-idx field)))
                      nil
                      row))
             nil
