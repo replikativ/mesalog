@@ -263,7 +263,7 @@
         colparser-compute-fn (fn [col-idx]
                                (let [col-idx (long col-idx)]
                                  {:column-idx col-idx
-                                  :column-name (keyword (make-colname col-idx))
+                                  :column-name (keyword (make-colname col-idx->colname col-idx))
                                   :column-parser (parse-context col-idx)}))
         col-idx->parser (fn [col-idx]
                           (let [col-idx (long col-idx)]
