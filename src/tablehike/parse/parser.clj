@@ -276,9 +276,10 @@
      :col-idx->parser col-idx->parser}))
 
 
-(defn- derive-parsers [^Iterator row-iter header-row options]
-  (let [num-rows (long (get options :n-records
-                            (get options :num-rows Long/MAX_VALUE)))
+(defn- infer-parsers [^Iterator row-iter header-row options]
+  (let [num-rows (long (get options :batch-size
+                            (get options :n-records
+                                 (get options :num-rows Long/MAX_VALUE))))
         {:keys [parsers col-idx->parser]}
         (options->col-idx-parse-context
          options :string (fn [^long col-idx]
@@ -293,24 +294,25 @@
                      row))
             nil
             (TakeReducer. row-iter num-rows))
-    (mapv (fn [{:keys [column-parser]}]
-            (.getData column-parser))
-          parsers)))
+    (->> (remove nil? parsers)
+         (mapv (fn [{:keys [column-parser]}]
+                 (.getData column-parser))))))
 
 
 (defn csv->parsers
-  [input {:keys [header-row?]
-          parser-fns :parser-fn
-          :or {header-row? true}
-          :as options}]
-  (let [row-iter (->> (update options :batch-size #(or % 128000))
-                      (charred/read-csv-supplier (ds-io/input-stream-or-reader input))
-                      (coerce/->iterator)
-                      pfor/->iterator)
-        n-initial-skip-rows (long (get options :n-initial-skip-rows 0))
-        _ (dotimes [idx n-initial-skip-rows]
-            (when (.hasNext row-iter) (.next row-iter)))
-        header-row (when (and header-row? (.hasNext row-iter))
-                     (vec (.next row-iter)))]
-    (when (.hasNext row-iter)
-      (derive-parsers row-iter header-row (dissoc options :batch-size)))))
+  ([input {:keys [header-row?]
+           :or {header-row? true}
+           :as options}]
+   (let [row-iter (->> (update options :batch-size #(or % 128000))
+                       (charred/read-csv-supplier (ds-io/input-stream-or-reader input))
+                       (coerce/->iterator)
+                       pfor/->iterator)
+         n-initial-skip-rows (long (get options :n-initial-skip-rows 0))
+         _ (dotimes [idx n-initial-skip-rows]
+             (when (.hasNext row-iter) (.next row-iter)))
+         header-row (when (and header-row? (.hasNext row-iter))
+                      (vec (.next row-iter)))]
+     (when (.hasNext row-iter)
+       (infer-parsers row-iter header-row options))))
+  ([input]
+   (csv->parsers input {})))
