@@ -1,4 +1,5 @@
 (ns tablehike.parse.datetime
+  (:require [tech.v3.dataset.io.column-parsers :refer [parse-failure]])
   (:import [java.time LocalDate LocalDateTime OffsetDateTime ZonedDateTime ZoneId]
            [java.util Date]))
 
@@ -31,10 +32,15 @@
 
 
 (defn update-datetime-coercers [coercers]
-  (let [coercers
-        (-> (apply dissoc coercers [:duration :local-time :packed-duration :packed-local-time])
-            (assoc :offset-date-time #(OffsetDateTime/parse ^String %)))]
+  (let [coercers (-> (apply dissoc
+                            coercers
+                            #{:duration :local-time :packed-duration :packed-local-time})
+                     (assoc :offset-date-time #(OffsetDateTime/parse ^String %)))]
     (merge coercers
            (->> (select-keys coercers datetime-datatypes)
-                (map (fn [[k v]] [k (comp datetime->date v)]))
+                (map (fn [[k v]] [k (fn [dt]
+                                      (let [parsed-value (v dt)]
+                                        (if (identical? parse-failure parsed-value)
+                                          parse-failure
+                                          (datetime->date parsed-value))))]))
                 (into {})))))
