@@ -135,8 +135,7 @@
       (.add missing-indexes (unchecked-int idx))
       (or (string? value)
           (not (identical? (fast-dtype value) parser-dtype)))
-      (when (identical? :tech.v3.dataset/parse-failure
-                        (parse-fn value))
+      (when (identical? parse-failure (parse-fn value))
         (do (.add failed-indexes (unchecked-int idx))
             (.add failed-values value)))))
   (getData [_this]
@@ -189,7 +188,7 @@
       (and (not (identical? (fast-dtype value) parser-dtype))
            parse-fn)
       (let [parsed-value (parse-fn value)]
-        (when (identical? :tech.v3.dataset/parse-failure parsed-value)
+        (when (identical? parse-failure parsed-value)
           (let [[new-dtype new-parse-fn] (find-next-parser value parser-dtype promotion-list)]
             (if new-parse-fn
               (do
