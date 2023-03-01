@@ -6,10 +6,11 @@
         org.clojure/clojure {:mvn/version "1.11.1"}
         org.roaringbitmap/RoaringBitmap {:mvn/version "0.9.0"}
         io.replikativ/datahike {:mvn/version "0.5.1501"}
-        techascent/tech.ml.dataset {:mvn/version "7.000-beta-10"}
-        scicloj/tablecloth {:mvn/version "6.103.1"}}
+        techascent/tech.ml.dataset {:mvn/version "7.000-beta-10"}}
 
- :aliases {:test {:extra-paths ["test"]
+ :aliases {:dev {:override-deps {techascent/tech.ml.dataset
+                                 {:local/root "/Users/yiffle/programming/code/cljc/clj/tech.ml.dataset"}}}
+           :test {:extra-paths ["test"]
                   :extra-deps {lambdaisland/kaocha {:mvn/version "1.64.1010"}}}
 
            :repl {:extra-deps {cider/cider-nrepl           {:mvn/version "0.28.5"}
