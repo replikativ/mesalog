@@ -148,8 +148,8 @@
 
 
 (defn make-fixed-parser
-  ^PParser [column-name parser-entry options]
-  (let [[dtype parse-fn]    (parser-description->dtype-fn-tuple parser-entry)
+  ^PParser [column-name parser-descriptor]
+  (let [[dtype parse-fn]    (parser-description->dtype-fn-tuple parser-descriptor)
         failed-values       (dtype/make-container :list :object 0)
         failed-indexes      (bitmap/->bitmap)
         missing-indexes     (bitmap/->bitmap)]
@@ -209,7 +209,7 @@
 
 
 (defn promotional-string-parser
-  (^PParser [column-name parser-datatype-sequence options]
+  (^PParser [column-name parser-datatype-sequence]
    (let [first-dtype (first parser-datatype-sequence)]
      (PromotionalStringParser. column-name
                                first-dtype
@@ -217,8 +217,8 @@
                                (bitmap/->bitmap)
                                (mapv (juxt identity default-coercers)
                                      parser-datatype-sequence))))
-  (^PParser [column-name options]
-   (promotional-string-parser column-name default-parser-datatype-sequence options)))
+  (^PParser [column-name]
+   (promotional-string-parser column-name default-parser-datatype-sequence)))
 
 
 (defn- make-colname [col-idx->colname col-idx]
@@ -245,14 +245,14 @@
                       colname)]
         (cond
           (nil? parser-descriptor)
-          (default-parse-fn colname options)
+          (default-parse-fn colname)
           (map? parser-descriptor)
           (if-let [col-parser-desc (or (get parser-descriptor colname)
                                        (get parser-descriptor col-idx))]
-            (make-fixed-parser col-parser-desc options)
-            (default-parse-fn colname options))
+            (make-fixed-parser colname col-parser-desc)
+            (default-parse-fn colname))
           :else
-          (make-fixed-parser colname parser-descriptor options))))))
+          (make-fixed-parser colname parser-descriptor))))))
 
 
 (defn- options->col-idx-parse-context
