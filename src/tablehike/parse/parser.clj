@@ -294,9 +294,9 @@
                      row))
             nil
             (TakeReducer. row-iter num-rows))
-    (->> (remove nil? parsers)
-         (mapv (fn [{:keys [column-parser]}]
-                 (.getData column-parser))))))
+    (mapv (fn [{:keys [^PParser column-parser] :as parser}]
+            (when parser (.getData column-parser)))
+          parsers)))
 
 
 (defn csv->parsers
