@@ -303,8 +303,8 @@
   ([input {:keys [header-row?]
            :or {header-row? true}
            :as options}]
-   (let [row-iter (->> (update options :batch-size #(or % 128000))
-                       (charred/read-csv-supplier (ds-io/input-stream-or-reader input))
+   (let [options (update options :batch-size #(or % 128000))
+         row-iter (->> (charred/read-csv-supplier (ds-io/input-stream-or-reader input) options)
                        (coerce/->iterator)
                        pfor/->iterator)
          n-initial-skip-rows (long (get options :n-initial-skip-rows 0))
