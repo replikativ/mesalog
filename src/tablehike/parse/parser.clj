@@ -13,8 +13,7 @@
             [tech.v3.datatype.datetime.operations :as dt-ops]
             [tech.v3.parallel.for :as pfor]
             [ham-fisted.api :as hamf])
-  (:import [clojure.lang IFn]
-           [clojure.lang IReduceInit]
+  (:import [clojure.lang IFn IReduceInit]
            [java.time.format DateTimeFormatter]
            [java.util Iterator List]
            [ham_fisted IMutList Casts]
