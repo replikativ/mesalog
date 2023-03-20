@@ -20,7 +20,8 @@
            [java.util Iterator List]
            [ham_fisted IMutList Casts]
            [org.roaringbitmap RoaringBitmap]
-           [tech.v3.dataset Text]))
+           [tech.v3.dataset Text]
+           [tech.v3.dataset.io.context ObjectArrayList]))
 
 
 (deftype ^:private TakeReducer [^Iterator src
@@ -261,7 +262,8 @@
    :col-idx->parser - given a column idx, get a parser.  Mutates parsers."
   [options parse-type col-idx->colname]
   (let [parse-context (options->parser-fn options parse-type col-idx->colname)
-        parsers (parse-context/->ObjectArrayList (object-array 16))
+        parsers (ObjectArrayList. (object-array 16))
+        ; TODO benchmark against `reify Function`
         colparser-compute-fn (fn [col-idx]
                                (let [col-idx (long col-idx)]
                                  {:column-idx col-idx
