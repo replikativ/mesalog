@@ -165,7 +165,7 @@
 ;; and its associated datatype
 (defn- find-next-parser
   [value parser-dtype ^List promotion-list]
-  (let [start-idx (.indexOf (mapv first promotion-list) parser-dtype)
+  (let [start-idx (.indexOf ^List (mapv first promotion-list) parser-dtype)
         n-elems (.size promotion-list)]
     (if (== start-idx -1)
       [:object nil]
