@@ -23,7 +23,6 @@
            [java.util Iterator List]
            [ham_fisted IMutList Casts]
            [org.roaringbitmap RoaringBitmap]
-           [tech.v3.dataset Text]
            [tech.v3.dataset.io.context ObjectArrayList]))
 
 
@@ -234,26 +233,6 @@
                                          parsers))}))
 
 
-(defn- options->row-iter [input options]
-  (let [row-iter (->> (charred/read-csv-supplier (ds-io/input-stream-or-reader input) options)
-                      (coerce/->iterator)
-                      pfor/->iterator)]
-    (dotimes [idx (long (get options :n-initial-skip-rows 0))]
-      (when (.hasNext row-iter) (.next row-iter)))
-    row-iter))
-
-
-(defn- iter->header-row [^Iterator row-iter]
-  (when (.hasNext row-iter)
-    (vec (.next row-iter))))
-
-
-(defn- options->num-rows [options]
-  (long (get options :batch-size
-             (get options :n-records
-                  (get options :num-rows Long/MAX_VALUE)))))
-
-
 (defn- make-colname
   ([col-idx col-idx->colname]
    (let [colname (when col-idx->colname
@@ -270,11 +249,11 @@
   a function that produces a column parser for a given column name or index; applicable only to
   scalar columns. `:parser-type` can be `nil`, for example if only columns with specified parser
   functions or datatypes should be parsed."
-  ([options parser-type col-idx->colname]
+  ([options parser-type parser-descriptor col-idx->colname]
    (let [default-parse-fn (case (get options :parser-type parser-type)
                             :string promotional-string-parser
                             nil (constantly nil))
-         parser-descriptor (:parser-fn options)]
+         parser-descriptor (or parser-descriptor (:parser-fn options))]
      (fn [col-idx]
        (let [colname (when col-idx->colname (col-idx->colname col-idx))
              colname (keyword (if (empty? colname)
@@ -290,8 +269,8 @@
              (default-parse-fn col-idx colname))
            :else
            (fixed-type-parser col-idx colname parser-descriptor))))))
-  ([options parser-type]
-   (options->parser-fn options parser-type nil)))
+  ([options parser-type parser-descriptor]
+   (options->parser-fn options parser-type parser-descriptor nil)))
 
 
 (defn- options->col-idx-parse-context
@@ -299,29 +278,31 @@
   return a map of parsers and a function to get a parser from a given column idx. Returns:
   {:parsers - parsers
    :col-idx->parser - given a column idx, get a parser.  Mutates parsers."
-  ([options parser-type col-idx->colname]
-   (let [make-parser-fn (options->parser-fn options parser-type col-idx->colname)
+  ([options parser-type parser-descriptor col-idx->colname]
+   (let [make-parser-fn (options->parser-fn options
+                                            parser-type
+                                            parser-descriptor
+                                            col-idx->colname)
          parsers (ObjectArrayList. (object-array 16))
-         ; TODO benchmark against `reify Function`
-         colparser-compute-fn (fn [col-idx]
-                                (make-parser-fn (long col-idx)))
          col-idx->parser (fn [col-idx]
                            (let [col-idx (long col-idx)]
                              (if-let [parser (.readObject parsers col-idx)]
                                parser
-                               (let [parser (colparser-compute-fn col-idx)]
+                               (let [parser (make-parser-fn (long col-idx))]
                                  (.writeObject parsers col-idx parser)
                                  parser))))]
      {:parsers parsers
       :col-idx->parser col-idx->parser}))
-  ([options parser-type] (options->col-idx-parse-context options parser-type nil)))
+  ([options parser-type parser-descriptor]
+   (options->col-idx-parse-context options parser-type parser-descriptor nil)))
 
 
-(defn- iter->parsers [header-row ^Iterator row-iter num-rows options]
+(defn- iter->parsers
+  ^ObjectArrayList [header-row ^Iterator row-iter num-rows options]
   (let [{:keys [parsers col-idx->parser]}
         (options->col-idx-parse-context
-         options :string (fn [^long col-idx]
-                           (get header-row col-idx)))]
+         options :string nil (fn [^long col-idx]
+                               (get header-row col-idx)))]
     (reduce (hamf/indexed-accum
              acc row-idx row
              (reduce (hamf/indexed-accum
@@ -335,21 +316,21 @@
     parsers))
 
 
-(defn- options->parsers [input {:keys [header-row?]
-                                :or {header-row? true}
-                                :as options}]
-  (let [row-iter ^Iterator (options->row-iter input options)
-        header-row (when header-row?
-                     (iter->header-row row-iter))
-        num-rows (options->num-rows options)]
+(defn- options->parsers [input options]
+  (let [row-iter ^Iterator (utils/csv->row-iter input options)
+        header-row (utils/row-iter->header-row row-iter options)]
     (when (.hasNext row-iter)
-      (iter->parsers header-row row-iter num-rows options))))
+      (iter->parsers header-row row-iter (:batch-size options) options))))
 
 
 (defn vector-parser [col-idx col-name options]
-  (let [{:keys [parsers col-idx->parser]}
-        (options->col-idx-parse-context options :string)]
-    (VectorParser. col-idx col-name parsers col-idx->parser Integer/MAX_VALUE 0 (bitmap/->bitmap))))
+  (let [parser-opts (get :parser-fn options)
+        {:keys [parsers col-idx->parser]}
+        (->> (or (get parser-opts col-name)
+                 (get parser-opts col-idx))
+             (options->col-idx-parse-context options :string))]
+    (->> (bitmap/->bitmap)
+         (VectorParser. col-idx col-name parsers col-idx->parser Integer/MAX_VALUE 0))))
 
 
 (defn- col-vector-parse-context [parsers options]
@@ -402,20 +383,15 @@
     vector-parsers))
 
 
-(defn- options->vector-parsers [parsers input {:keys [header-row?]
-                                               :or {header-row? true}
-                                               :as options}]
-  (let [row-iter ^Iterator (options->row-iter input options)
-        _ (when header-row?
-            (iter->header-row row-iter))
-        num-rows (options->num-rows options)]
+(defn- options->vector-parsers [parsers input options]
+  (let [row-iter (utils/csv->header-skipped-iter input)]
     (when (.hasNext row-iter)
-      (iter->vector-parsers parsers row-iter num-rows options))))
+      (iter->vector-parsers parsers row-iter (:batch-size options) options))))
 
 
 (defn csv->parsers
   ([input options]
-   (let [options (update options :batch-size #(or % 128000))
+   (let [options (update options :batch-size #(or % utils/schema-inference-batch-size))
          parsers (options->parsers input options)]
      (->> (options->vector-parsers parsers input options)
           (mapv (fn [p vp]
