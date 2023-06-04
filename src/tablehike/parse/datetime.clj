@@ -130,11 +130,6 @@ parse a wide variety of local date formats."
                        [k (utils/make-safe-parse-fn (comp datetime->date v))])))))
 
 
-(defn update-datetime-coercers [coercers]
-  (into (apply dissoc coercers #{:duration :local-time :packed-duration :packed-local-time})
-        datatype->general-parse-fn-map))
-
-
 (defn datetime-formatter-parse-fn
   "Given a datatype and a formatter return a function that attempts to
   parse that specific datatype, then convert into a java.util.Date."

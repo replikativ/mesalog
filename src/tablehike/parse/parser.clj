@@ -28,9 +28,10 @@
 
 
 (def default-coercers
-  (-> (apply dissoc parsers/default-coercers [:bool :text])
-      (assoc :string #(if (string? %) % (str %)))
-      dt/update-datetime-coercers))
+  (let [coercers (-> (apply dissoc parsers/default-coercers [:bool :text])
+                     (assoc :string #(if (string? %) % (str %))))]
+    (into (apply dissoc coercers #{:duration :local-time :packed-duration :packed-local-time})
+          dt/datatype->general-parse-fn-map)))
 
 
 (deftype ^:private TakeReducer [^Iterator src
