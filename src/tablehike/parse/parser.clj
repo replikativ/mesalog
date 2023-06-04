@@ -7,7 +7,8 @@
             [charred.api :as charred]
             [charred.coerce :as coerce]
             [tablehike.parse.datetime :as dt]
-            [tablehike.parse.utils :as utils]
+            [tablehike.parse.utils :as parse-utils]
+            [tablehike.utils :as utils]
             [tech.v3.dataset.impl.column-base :as column-base]
             [tech.v3.dataset.io :as ds-io]
             [tech.v3.dataset.io.column-parsers :refer [parse-failure missing] :as parsers]
@@ -82,7 +83,7 @@
                            [parser-entry])
         formattable-dt-dtypes (cljset/difference dt/datetime-datatypes #{:instant :packed-instant})
         datetime-formatter-parse-fn (fn [dtype formatter]
-                                      (utils/make-safe-parse-fn
+                                      (parse-utils/make-safe-parse-fn
                                        (dt/datetime-formatter-parse-fn dtype formatter)))]
     (assert (keyword? dtype))
     [dtype
@@ -109,10 +110,10 @@
   PParser
   (parseValue [_this idx value]
     (cond
-      (utils/missing-value? value)
+      (parse-utils/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
       (or (string? value)
-          (not (identical? (utils/fast-dtype value) parser-dtype)))
+          (not (identical? (parse-utils/fast-dtype value) parser-dtype)))
       (when (identical? parse-failure (parse-fn value))
         (do (.add failed-indexes (unchecked-int idx))
             (.add failed-values value)))))
@@ -161,9 +162,9 @@
   PParser
   (parseValue [_this idx value]
     (cond
-      (utils/missing-value? value)
+      (parse-utils/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
-      (and (not (identical? (utils/fast-dtype value) parser-dtype))
+      (and (not (identical? (parse-utils/fast-dtype value) parser-dtype))
            parse-fn)
       (let [parsed-value (parse-fn value)]
         (when (identical? parse-failure parsed-value)
