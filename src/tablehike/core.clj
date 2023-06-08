@@ -1,3 +1,5 @@
+(set! *warn-on-reflection* 1)
+
 (ns tablehike.core
   (:require [clojure.string :as str]
             [datahike.api :as d]

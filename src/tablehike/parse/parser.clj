@@ -1,5 +1,3 @@
-(set! *warn-on-reflection* 1)
-
 (ns tablehike.parse.parser
   (:require [datahike.api :as d]
             [clojure.java.io :as io]
