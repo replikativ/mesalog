@@ -2,8 +2,10 @@
   (:require [charred.api :as charred]
             [charred.coerce :as coerce]
             [tech.v3.dataset.io :as ds-io]
+            [tech.v3.dataset.io.column-parsers :refer [missing]]
             [tech.v3.parallel.for :as pfor])
-  (:import [java.util Iterator]))
+  (:import [java.util Iterator]
+           [ham_fisted Casts]))
 
 
 (def schema-inference-batch-size 10000)
@@ -54,3 +56,29 @@
   (let [row-iter ^Iterator (csv->row-iter input options)
         _ (row-iter->header-row row-iter options)]
     row-iter))
+
+
+(defn options-for-vector-read [options]
+  (if-some [vs (get options :vector-separator)]
+    (assoc options :separator vs)
+    options))
+
+
+(defn vector-string->csv-vector [string options]
+  (let [len (.length ^String string)]
+    (-> (subs string 1 (dec len))
+        (charred/read-csv options)
+        (nth 0))))
+
+
+(defn missing-value?
+  "Is this a missing value coming from a CSV file"
+  [value]
+  (cond
+    (or (instance? Double value) (instance? Float value))
+    (Double/isNaN (Casts/doubleCast value))
+    (not (instance? Number value))
+    (or (nil? value)
+        (.equals "" value)
+        (identical? value missing)
+        (and (string? value) (re-matches #"(?i)^n\/?a$" value)))))

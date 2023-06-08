@@ -111,7 +111,7 @@
   PParser
   (parseValue [_this idx value]
     (cond
-      (parse-utils/missing-value? value)
+      (utils/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
       (or (string? value)
           (not (identical? (parse-utils/fast-dtype value) parser-dtype)))
@@ -163,7 +163,7 @@
   PParser
   (parseValue [_this idx value]
     (cond
-      (parse-utils/missing-value? value)
+      (utils/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
       (and (not (identical? (parse-utils/fast-dtype value) parser-dtype))
            parse-fn)
@@ -356,9 +356,6 @@
 (defn- iter->vector-parsers [parsers ^Iterator row-iter num-rows options]
   (let [vector-open (get options :vector-open \[)
         vector-close (get options :vector-close \])
-        vector-opts (if-some [vs (get options :vector-separator)]
-                      (assoc options :separator vs)
-                      options)
         {:keys [^ObjectArrayList vector-parsers row-missing-in-col?]}
         (col-vector-parse-context parsers options)]
     (reduce (hamf/indexed-accum
@@ -372,11 +369,9 @@
                                      (identical? (nth field 0) vector-open)
                                      (-> (nth field (dec len))
                                          (identical? vector-close)))
-                              (parse-value! parser
-                                            row-idx
-                                            (-> (subs field 1 (dec len))
-                                                (charred/read-csv vector-opts)
-                                                (nth 0)))
+                              (->> (utils/options-for-vector-read options)
+                                   (utils/vector-string->csv-vector field)
+                                   (parse-value! parser row-idx))
                               (.writeObject vector-parsers col-idx nil))))))
                      nil
                      row))
