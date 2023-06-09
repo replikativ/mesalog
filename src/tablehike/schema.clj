@@ -6,27 +6,20 @@
             [tablehike.utils :as utils])
   (:import [java.util HashMap HashSet]))
 
-; TODO
-; - type-hint properly
 
-
-(defn- parser->schema-dtype [parser-dtype]
-  (let [translate (fn [dtype]
-                    (cond
-                      (identical? :bool dtype) :db.type/boolean
-                      (identical? :float32 dtype) :db.type/float
-                      (identical? :float64 dtype) :db.type/double
-                      (contains? #{:int16 :int32 :int64} dtype) :db.type/long
-                      (contains? dt/datetime-datatypes dtype) :db.type/instant
-                      :else (keyword "db.type" (name dtype))))]
-    (if (identical? :vector parser-dtype)
-      (mapv translate (get p :field-parser-data))
-      (translate parser-dtype))))
+(defn- parser->schema-dtype [dtype]
+  (cond
+    (identical? :bool dtype) :db.type/boolean
+    (identical? :float32 dtype) :db.type/float
+    (identical? :float64 dtype) :db.type/double
+    (contains? #{:int16 :int32 :int64} dtype) :db.type/long
+    (contains? dt/datetime-datatypes dtype) :db.type/instant
+    :else (keyword "db.type" (name dtype))))
 
 
 (defn- map-col-names->schema-dtypes [parsers]
   (into {}
-        (map (fn [m {:keys [column-name parser-dtype] :as p}]
+        (map (fn [{:keys [column-name parser-dtype] :as p}]
                [column-name
                 (if (identical? :vector parser-dtype)
                   (mapv parser->schema-dtype (get p :field-parser-data))
@@ -216,14 +209,14 @@
                         ^"[Ljava.lang.Object;" a-col-idx->evs
                         ^HashSet maybe-tuples]
   ISchemaBuilder
-  (updateSchema [row-idx row-vals]
+  (updateSchema [_this row-idx row-vals]
     (let [row-id-attr-val (mapv #(nth row-vals %) id-col-indices)
           entity-row-idx (when (some? id-col-indices)
                            (or (.get id-attr-val->row-idx row-id-attr-val)
                                (.put id-attr-val->row-idx row-id-attr-val row-idx)  ; always nil
                                row-idx))]
       (reduce-kv
-       (fn [_ i v]
+       (fn [_ i ^String v]
          (when-not (utils/missing-value? v)
            (when (.contains maybe-refs i)
              (let [vector-vals (utils/vector-string->csv-vector v vector-read-opts)
@@ -262,7 +255,7 @@
                      (when maybe-tuple (.remove maybe-tuples i)))))))
          nil
          row-vals))))
-  (finalizeSchema []
+  (finalizeSchema [_this]
     (let [ident->index (->> index->ident
                             (into {} (map (fn [[k v]]
                                             [v k]))))]
@@ -309,8 +302,6 @@
                                         ident)))
                                ident->tx-schema)
         id-col-indices ((first csv-unique-attrs) ident->index)
-        unique-attrs (when (> (count maybe-refs) 0)
-                       (set/union rschema-unique-id rschema-unique-val csv-unique-attrs))
         get-indices-with-missing (fn [attr]
                                    (into #{}
                                          (map (fn [ident schema]
@@ -328,16 +319,15 @@
                              :field-parser-data
                              is-homogeneous-vector?)
                        (get-indices-with-missing :db/valueType))
-             (into {} (map [[k v]]
-                           [k (HashSet. (into #{} v))])))
-        vector-read-opts (utils/options-for-vector-read options)
-        init-schema-builder (partial SchemaBuilder.
-                                     index->ident
-                                     ident->dtype
-                                     ident->tx-schema
-                                     unique-attrs
-                                     vector-read-opts
-                                     maybe-refs)]
+             (into {} (map (fn [[k v]]
+                             [k (HashSet. (into #{} v))]))))
+        unique-attrs (when (> (count maybe-refs) 0)
+                       (set/union rschema-unique-id rschema-unique-val csv-unique-attrs))
+        init-schema-builder
+        (fn [id-col-indices id-attr-val->row-idx a-col-idx->evs maybe-tuples]
+          (SchemaBuilder. index->ident ident->dtype ident->tx-schema unique-attrs
+                          (utils/options-for-vector-read options) maybe-refs
+                          id-col-indices id-attr-val->row-idx a-col-idx->evs maybe-tuples))]
     (if (some? id-col-indices)
       (init-schema-builder id-col-indices
                            (HashMap.)
@@ -348,6 +338,7 @@
                                    (set/union no-cardinality maybe-tuples))
                            maybe-tuples)
       (init-schema-builder nil nil nil nil))))
+
 ;                                      (-> (if-let [value-type (-> (nth ident->tx-schema idx)
 ;                                                                  (get :db/valueType))]
 ;                                            (as-> (name value-type) type-name
