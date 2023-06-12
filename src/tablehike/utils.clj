@@ -8,9 +8,6 @@
            [ham_fisted Casts]))
 
 
-(def schema-inference-batch-size 10000)
-
-
 (defn rm-empty-elements [coll init init-transient?]
   (reduce-kv (fn [m k v]
                (if (if (seqable? v) (seq v) (some? v))

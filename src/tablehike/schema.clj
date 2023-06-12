@@ -113,7 +113,6 @@
        (apply = dtype)))
 
 
-; TODO check that :db/isComponent attrs are refs?
 (defn- map-idents->tx-schemas [parsers
                                {tuples :db.type/tuple
                                 composite-tuples :db.type/compositeTuple
@@ -281,7 +280,6 @@
                       {tuples :db.type/tuple
                        composite-tuples :db.type/compositeTuple
                        :as schema-arg}
-                      schema
                       {rschema-unique-id :db.unique/id
                        rschema-unique-val :db.unique/value}
                       options]
@@ -332,7 +330,8 @@
       (init-schema-builder id-col-indices
                            (HashMap.)
                            (reduce (fn [array idx]
-                                     (->> (object-array utils/schema-inference-batch-size)
+                                     (->> (or (:schema-sample-size options) 12800)
+                                          object-array
                                           (aset array idx)))
                                    (object-array (count parsers))
                                    (set/union no-cardinality maybe-tuples))

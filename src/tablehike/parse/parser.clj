@@ -2,6 +2,7 @@
   (:require [datahike.api :as d]
             [clojure.java.io :as io]
             [clojure.set :as cljset]
+            [clojure.string :as string]
             [charred.api :as charred]
             [charred.coerce :as coerce]
             [tablehike.parse.datetime :as dt]
@@ -258,7 +259,7 @@
        (let [colname (when col-idx->colname (col-idx->colname col-idx))
              colname (keyword (if (empty? colname)
                                 (make-colname col-idx)
-                                colname))]
+                                (string/replace colname #"\s+" "")))]
          (cond
            (nil? parser-descriptor)
            (default-parse-fn col-idx colname)
@@ -303,6 +304,7 @@
         (options->col-idx-parse-context
          options :string nil (fn [^long col-idx]
                                (get header-row col-idx)))]
+    ; TODO Does reduce-kv work instead? If yes, is it comparable in performance?
     (reduce (hamf/indexed-accum
              acc row-idx row
              (reduce (hamf/indexed-accum
@@ -320,7 +322,7 @@
   (let [row-iter ^Iterator (utils/csv->row-iter input options)
         header-row (utils/row-iter->header-row row-iter options)]
     (when (.hasNext row-iter)
-      (iter->parsers header-row row-iter (:batch-size options) options))))
+      (iter->parsers header-row row-iter (:parser-sample-size options) options))))
 
 
 (defn vector-parser [col-idx col-name options]
@@ -356,6 +358,7 @@
         vector-close (get options :vector-close \])
         {:keys [^ObjectArrayList vector-parsers row-missing-in-col?]}
         (col-vector-parse-context parsers options)]
+    ; TODO Does reduce-kv work instead? If yes, is it comparable in performance?
     (reduce (hamf/indexed-accum
              acc row-idx row
              (reduce (hamf/indexed-accum
@@ -379,14 +382,14 @@
 
 
 (defn- options->vector-parsers [parsers input options]
-  (let [row-iter (utils/csv->header-skipped-iter input)]
+  (let [row-iter (utils/csv->header-skipped-iter input options)]
     (when (.hasNext row-iter)
-      (iter->vector-parsers parsers row-iter (:batch-size options) options))))
+      (iter->vector-parsers parsers row-iter (:parser-sample-size options) options))))
 
 
 (defn csv->parsers
   ([input options]
-   (let [options (update options :batch-size #(or % utils/schema-inference-batch-size))
+   (let [options (update options :parser-sample-size #(or % 12800))
          parsers (options->parsers input options)]
      (->> (options->vector-parsers parsers input options)
           (mapv (fn [p vp]
