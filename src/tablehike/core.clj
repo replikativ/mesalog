@@ -190,11 +190,12 @@
              (map #(merge-entity-rows % merge-attr))))
       ds-to-tx)))
 
+
 (defn load-csv
   "Reads, parses, and loads data from CSV file named `csv-file` into the Datahike database having
-  (optionally specified) config `cfg`, with likewise optional schema-related options for the
-  corresponding attributes. Each column represents an attribute, with keywordized column name as
-  attribute ident, or otherwise, an element in a heterogeneous or homogeneous tuple.
+  (optionally specified) config `cfg`, with likewise optional schema-related options for attributes.
+  Each column represents an attribute, with keywordized column name as attribute ident, or otherwise,
+  an element in a heterogeneous or homogeneous tuple.
 
   If `cfg` is omitted, and the last argument:
   1. is also absent, or has empty `:schema`, `:ref-map`, and `:composite-tuple-map`, `cfg` is inferred to be `{:schema-flexibility :read}`.
@@ -236,7 +237,7 @@
                              :tuple-map {...}
                              :composite-tuple-map {...}})
   (load-csv csv-file dh-cfg {:schema {:unique-id #{...}
-                                      ...}
+                                       ...}
                              :ref-map {...}
                              :tuple-map {...}
                              :composite-tuple-map {...}})
