@@ -8,8 +8,11 @@
             [tablehike.parse.parser :as parser]
             [tablehike.parse.datetime :as dt]
             [tablehike.schema :as schema]
-            [tablehike.utils :as utils]))
+            [tablehike.utils :as utils])
+  (:import [clojure.lang IFn IReduceInit PersistentVector]
+           [java.util Iterator List]))
 
+(comment
 
 (defn- assoc-mismatched-ref-type [m k coltypes ref-type]
   (if (not= (k coltypes) ref-type)
@@ -279,6 +282,7 @@
     :db/noHistory}
   )
 
+)
 
 ; TODO types: uuid, keyword, ...
 ; TODO allow user spec of parser and schema inference batch size
@@ -302,6 +306,23 @@
 ; over rows:
 ;   check whether column is exception, else add to tx-data
 ; transact maybe-refs etc. after the rest
+
+(deftype ^:private TakeReducer [^Iterator src
+                                ^{:unsynchronized-mutable true
+                                  :tag                    long} count]
+  IReduceInit
+  (reduce [this rfn acc]
+    (let [cnt count]
+      (loop [idx       0
+             continue? (.hasNext src)
+             acc       acc]
+        (if (and continue? (< idx cnt))
+          (let [acc (rfn acc (.next src))]
+            (recur (unchecked-inc idx) (.hasNext src) acc))
+          (do
+            (set! count (- cnt idx))
+            acc))))))
+
 (defn load-csv
   ([csv-file]
    (load-csv csv-file nil {} {}))
@@ -315,25 +336,48 @@
          _ (if-not (d/database-exists? cfg)
              (d/create-database cfg))
          conn (d/connect cfg)
-         schema-builder (schema/schema-builder parsers schema )
+         schema-builder (schema/schema-builder parsers schema
+                                               (d/schema @conn)
+                                               (d/reverse-schema @conn)
+                                               options)
          ; TODO handle nil (no data)
-         ident-tx-schemas (init-tx-schema schema parsers)
+         ;; ident-tx-schemas (init-tx-schema schema parsers)
          row-iter (utils/csv->row-iter csv-file options)
-         _ (utils/row-iter->header-row row-iter options)
-         (iter->schema-and-first-batch row-iter ident-tx-schemas)
-         {ref-attrs :db.type/ref
-          composite-tuples :db.type/compositeTuple} schema
-         ds-seq (->> (cond-> {:key-fn keyword}
-                       batch-size (assoc :batch-size batch-size))
-                     (csv/csv->dataset-seq csv-file))
-         cols-info (get-column-info (first ds-seq))
-         coltypes (zipmap (:name cols-info) (:datatype cols-info))
-         schema (schema-for-transact schema coltypes @conn)]
-     (when (not-empty schema)
-       (d/transact conn schema))
-     (doseq [ds ds-seq]
-       (->> (dataset-for-transact (cond-> ds
-                                    (not-empty ref-map) (dataset-with-ref-cols coltypes ref-map @conn))
-                                  (d/reverse-schema @conn)
-                                  tuple-map)
-            (d/transact conn))))))
+         ;; _ (utils/row-iter->header-row row-iter options)
+         ;; (iter->schema-and-first-batch row-iter ident-tx-schemas)
+         ;; {ref-attrs :db.type/ref
+         ;;  composite-tuples :db.type/compositeTuple} schema
+         ;; ds-seq (->> (cond-> {:key-fn keyword}
+         ;;               batch-size (assoc :batch-size batch-size))
+         ;;             (csv/csv->dataset-seq csv-file))
+         ;; cols-info (get-column-info (first ds-seq))
+         ;; coltypes (zipmap (:name cols-info) (:datatype cols-info))
+         ;; schema (schema-for-transact schema coltypes @conn)
+
+         ]
+
+     (reduce (hamf/indexed-accum acc row-idx row
+                                 (.updateSchema schema-builder row-idx row))
+             nil
+             (TakeReducer. row-iter (or (:schema-sample-size options) 1000)))
+
+     ;; (when (not-empty schema)
+     ;;   (d/transact conn schema))
+     ;; (doseq [ds ds-seq]
+     ;;   (->> (dataset-for-transact (cond-> ds
+     ;;                                (not-empty ref-map) (dataset-with-ref-cols coltypes ref-map @conn))
+     ;;                              (d/reverse-schema @conn)
+     ;;                              tuple-map)
+     ;;        (d/transact conn)))
+
+     )
+   )
+
+  )
+
+(comment
+
+
+  (load-csv "resources/agencies.csv")
+
+  )

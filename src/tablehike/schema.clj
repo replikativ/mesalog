@@ -1,7 +1,6 @@
 (ns tablehike.schema
   (:require [clojure.set :as set]
             [clojure.string :as string]
-            [tablehike.parse.utils :as parse-utils]
             [tablehike.parse.datetime :as dt]
             [tablehike.utils :as utils])
   (:import [java.util HashMap HashSet]))
@@ -39,8 +38,8 @@
   (let [col-name->index (map-col-names->indices parsers)
         all-tuples-map (cond-> composite-tuples
                          (map? tuples) (merge tuples))]
-    (into (->> (apply dissoc col-name->index)
-               (keys all-tuples-map))
+    (into (->> (keys all-tuples-map)
+             (apply dissoc col-name->index))
           (map (fn [[t cols]]
                  [t (mapv col-name->index cols)]))
           all-tuples-map)))
@@ -105,7 +104,10 @@
       (set? schema-tuple-attrs)
       (map (fn [t]
              [t (->> (get col-name->schema-dtype t)
-                     (init-tuple-schema t))])))))
+                     (init-tuple-schema t))]))
+      ;; no op, TODO speed up?
+      (nil? schema-tuple-attrs)
+      (map (fn [x] x)))))
 
 
 (defn- is-homogeneous-vector? [dtype]
@@ -166,14 +168,14 @@
                             (if (.equals "db.type" schema-a-ns)
                               [:db/valueType schema-a]
                               ; :db.cardinality/<one|many>, :db.unique/<identity|value>
-                              [(keyword (str/replace schema-a-ns \. \/))
+                              [(keyword (string/replace schema-a-ns \. \/))
                                schema-a]))]
                 (assoc a-schema k v)))]
         (->> (reduce-kv (fn [m schema-a col-attrs]
                           (reduce (fn [m a]
-                                    (update m a #(update-attr-schema % schema-a))
-                                    m
-                                    col-attrs)))
+                                    (update m a #(update-attr-schema % schema-a)))
+                                  m
+                                  col-attrs))
                         ident->tx-schema
                         (-> (dissoc schema-arg :db.type/tuple)
                             (dissoc :db.type/compositeTuple)))
@@ -251,9 +253,9 @@
                             #(assoc tx-schema :db/cardinality :db.cardinality/many))
                           (.put ident->tx-schema ident))
                      (aset a-col-idx->evs i nil)
-                     (when maybe-tuple (.remove maybe-tuples i)))))))
-         nil
-         row-vals))))
+                     (when maybe-tuple (.remove maybe-tuples i))))))))
+       nil
+       row-vals)))
   (finalizeSchema [_this]
     (let [ident->index (->> index->ident
                             (into {} (map (fn [[k v]]
@@ -280,6 +282,7 @@
                       {tuples :db.type/tuple
                        composite-tuples :db.type/compositeTuple
                        :as schema-arg}
+                      schema
                       {rschema-unique-id :db.unique/id
                        rschema-unique-val :db.unique/value}
                       options]
@@ -294,17 +297,21 @@
         ident->tx-schema (map-idents->tx-schemas parsers schema-arg)
         ident->index (map-idents->indices parsers tuples composite-tuples)
         csv-unique-attrs (into #{}
-                               (map (fn [[ident {unique :db/unique}]]
-                                      (when (or (identical? :db.unique/identity unique)
-                                                (identical? :db.unique/value unique))
-                                        ident)))
+                               (comp (map (fn [[ident {unique :db/unique}]]
+                                            (when (or (identical? :db.unique/identity unique)
+                                                      (identical? :db.unique/value unique))
+                                              ident)))
+                                     (filter (comp not nil?)))
                                ident->tx-schema)
-        id-col-indices ((first csv-unique-attrs) ident->index)
+        ;; TODO revisit
+        id-col-indices (when-not (empty? csv-unique-attrs)
+                         ((first csv-unique-attrs) ident->index))
         get-indices-with-missing (fn [attr]
                                    (into #{}
-                                         (map (fn [ident schema]
-                                                (when (nil? (get schema attr))
-                                                  (get ident->index ident))))
+                                         (comp (map (fn [[ident schema]]
+                                                      (when (nil? (get schema attr))
+                                                        (get ident->index ident))))
+                                               (filter (comp not nil?)))
                                          ident->tx-schema))
         no-cardinality (get-indices-with-missing :db/cardinality)
         ; 1. maybe-refs may be refs or (length-two, keyword-first) tuples
@@ -313,10 +320,11 @@
         ; then it is assigned a :tuple schema value type;
         ; otherwise it's a cardinality-many attribute of whatever type the elements are
         {maybe-tuples true maybe-refs false}
-        (->> (group-by #(->> (nth parsers %)
-                             :field-parser-data
-                             is-homogeneous-vector?)
-                       (get-indices-with-missing :db/valueType))
+        (->> (group-by (fn [x]
+                       (->> (nth parsers x)
+                            :field-parser-data
+                            is-homogeneous-vector?))
+                     (get-indices-with-missing :db/valueType))
              (into {} (map (fn [[k v]]
                              [k (HashSet. (into #{} v))]))))
         unique-attrs (when (> (count maybe-refs) 0)
@@ -351,3 +359,4 @@
 ;                                                     java.lang.Class/forName)))
 ;                                            Object)
 ;                                          (make-array utils/schema-inference-batch-size))))
+
