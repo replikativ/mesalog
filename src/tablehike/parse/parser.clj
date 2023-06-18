@@ -382,7 +382,7 @@
 
 
 (defn- options->vector-parsers [parsers input options]
-  (let [row-iter (utils/csv->header-skipped-iter input options)]
+  (let [row-iter (utils/csv->header-skipped-row-iter input options)]
     (when (.hasNext row-iter)
       (iter->vector-parsers parsers row-iter (:parser-sample-size options) options))))
 

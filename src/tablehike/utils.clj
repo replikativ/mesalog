@@ -49,7 +49,7 @@
     (vec (.next row-iter))))
 
 
-(defn csv->header-skipped-iter [input options]
+(defn ^Iterator csv->header-skipped-row-iter [input options]
   (let [row-iter ^Iterator (csv->row-iter input options)
         _ (row-iter->header-row row-iter options)]
     row-iter))
