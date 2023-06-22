@@ -142,7 +142,8 @@
   [value parser-dtype ^List promotion-list]
   (let [start-idx (.indexOf ^List (mapv first promotion-list) parser-dtype)
         n-elems (.size promotion-list)]
-    (if (== start-idx -1)
+    (if (and (== start-idx -1)
+             (some? parser-dtype))
       [:object nil]
       (loop [idx (inc start-idx)]
         (if (< idx n-elems)
@@ -154,44 +155,52 @@
           [:object nil])))))
 
 
-(deftype PromotionalStringParser [col-idx col-name
+(deftype PromotionalStringParser [col-idx
+                                  col-name
                                   ^{:unsynchronized-mutable true} parser-dtype
                                   ^{:unsynchronized-mutable true} parse-fn
                                   ^RoaringBitmap missing-indexes
                                   ^List promotion-list]
   PParser
   (parseValue [_this idx value]
-    (cond
-      (utils/missing-value? value)
+    (if (utils/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
-      (and (not (identical? (parse-utils/fast-dtype value) parser-dtype))
-           parse-fn)
-      (let [parsed-value (parse-fn value)]
-        (when (identical? parse-failure parsed-value)
-          (let [[new-dtype new-parse-fn] (find-next-parser value parser-dtype promotion-list)]
-            (if new-parse-fn
-              (do
-                (set! parser-dtype new-dtype)
-                (set! parse-fn new-parse-fn))
-              (throw (IllegalArgumentException.
-                      (format "Unable to parse value %s in row %s of column %s" value idx col-name)))))))
-      (nil? parse-fn)
-      (throw (IllegalArgumentException.
-              (format "`nil` parse function not allowed in promotional parser but found in column %s"
-                      col-name)))))
+      (do
+        (when (nil? parser-dtype)
+          (let [[first-dtype first-parse-fn] (first promotion-list)]
+            (do (set! parser-dtype first-dtype)
+                (set! parse-fn first-parse-fn))))
+        (cond
+          (and (not (-> (parse-utils/fast-dtype value)
+                        (identical? parser-dtype)))
+               parse-fn)
+          (when (identical? parse-failure
+                            (parse-fn value))
+            (let [[new-dtype new-parse-fn]
+                  (find-next-parser value parser-dtype promotion-list)]
+              (if new-parse-fn
+                (do (set! parser-dtype new-dtype)
+                    (set! parse-fn new-parse-fn))
+                (throw (IllegalArgumentException.
+                        (format "Unable to parse value %s in row %s of column %s"
+                                value idx col-name))))))
+          (nil? parse-fn)
+          (-> "`nil` parse function not allowed in promotional parser but found in column %s"
+              (format col-name)
+              IllegalArgumentException.
+              throw)))))
   (dataIntoMap [_this]
     (parser-data-into-map col-idx col-name parser-dtype parse-fn missing-indexes)))
 
 
 (defn promotional-string-parser
   (^PParser [col-idx col-name parser-datatype-sequence]
-   (let [first-dtype (first parser-datatype-sequence)]
-     (PromotionalStringParser. col-idx
-                               col-name
-                               first-dtype
-                               (default-coercers first-dtype)
-                               (bitmap/->bitmap)
-                               (mapv (juxt identity default-coercers) parser-datatype-sequence))))
+   (PromotionalStringParser. col-idx
+                             col-name
+                             nil
+                             nil
+                             (bitmap/->bitmap)
+                             (mapv (juxt identity default-coercers) parser-datatype-sequence)))
   (^PParser [col-idx col-name]
    (promotional-string-parser col-idx col-name default-parser-datatype-sequence)))
 
