@@ -1,12 +1,7 @@
-(ns ^:no-doc tablehike.utils
-  (:require [charred.api :as charred]
-            [charred.coerce :as coerce]
-            [tech.v3.dataset.io :as ds-io]
-            [tech.v3.dataset.io.column-parsers :refer [missing]]
-            [tech.v3.parallel.for :as pfor])
-  (:import [java.util Iterator]
-           [ham_fisted Casts]))
+(ns ^:no-doc tablehike.utils)
 
+
+; TODO rm unused (likely the whole namespace)
 
 (defn rm-empty-elements [coll init init-transient?]
   (reduce-kv (fn [m k v]
@@ -30,52 +25,3 @@
                 row)))
           init
           (keys tuple-map)))
-
-
-(defn csv->row-iter [input options]
-  (->> (charred/read-csv-supplier (ds-io/input-stream-or-reader input) options)
-       (coerce/->iterator)
-       pfor/->iterator))
-
-
-(defn row-iter->header-row [^Iterator row-iter
-                            {:keys [n-initial-skip-rows header-row?]
-                             :or {n-initial-skip-rows 0
-                                  header-row? true}}]
-  (dotimes [_ n-initial-skip-rows]
-    (when (.hasNext row-iter)
-      (.next row-iter)))
-  (when (and header-row? (.hasNext row-iter))
-    (vec (.next row-iter))))
-
-
-(defn ^Iterator csv->header-skipped-row-iter [input options]
-  (let [row-iter ^Iterator (csv->row-iter input options)
-        _ (row-iter->header-row row-iter options)]
-    row-iter))
-
-
-(defn options-for-vector-read [options]
-  (if-some [vs (get options :vector-separator)]
-    (assoc options :separator vs)
-    options))
-
-
-(defn vector-string->csv-vector [string options]
-  (let [len (.length ^String string)]
-    (-> (subs string 1 (dec len))
-        (charred/read-csv options)
-        (nth 0))))
-
-
-(defn missing-value?
-  "Is this a missing value coming from a CSV file"
-  [value]
-  (cond
-    (or (instance? Double value) (instance? Float value))
-    (Double/isNaN (Casts/doubleCast value))
-    (not (instance? Number value))
-    (or (nil? value)
-        (.equals "" value)
-        (identical? value missing)
-        (and (string? value) (re-matches #"(?i)^n\/?a$" value)))))

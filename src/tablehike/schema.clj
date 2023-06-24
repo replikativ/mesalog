@@ -1,9 +1,11 @@
 (ns tablehike.schema
   (:require [clojure.set :as set]
             [clojure.string :as string]
+            [ham-fisted.api :as hamf]
             [tablehike.parse.datetime :as dt]
-            [tablehike.utils :as utils])
-  (:import [java.util HashMap HashSet]))
+            [tablehike.read :as csv-read])
+  (:import [java.util HashMap HashSet]
+           [tablehike.read TakeReducer]))
 
 
 (defn- parser->schema-dtype [dtype]
@@ -239,7 +241,7 @@
   (updateMaybeRefs [_this i ^String v]
     (when (and (some? maybe-refs)
                (.contains maybe-refs i))
-      (let [vector-vals (utils/vector-string->csv-vector v vector-read-opts)
+      (let [vector-vals (csv-read/vector-string->csv-vector v vector-read-opts)
             maybe-ident (nth vector-vals 0)
             ident (get index->ident i)
             vector-dtypes (get ident->dtype ident)]
@@ -256,7 +258,7 @@
   (updateSchema [_this row-idx row-vals]
     (if (nil? id-col-indices)
       (-> (fn [_ i ^String v]
-            (when-not (utils/missing-value? v)
+            (when-not (csv-read/missing-value? v)
               (.updateMaybeRefs _this i v)))
           (reduce-kv nil row-vals))
       (let [row-id-attr-val (mapv #(nth row-vals %) id-col-indices)
@@ -265,7 +267,7 @@
                                (.put id-attr-val->row-idx row-id-attr-val row-idx)  ; always nil
                                row-idx)]
         (-> (fn [_ i ^String v]
-              (when-not (utils/missing-value? v)
+              (when-not (csv-read/missing-value? v)
                 (.updateMaybeRefs _this i v)
                 (when-let [a-evs ^"[Ljava.lang.Object;" (aget a-col-idx->evs i)]
                   (if existing-entity
@@ -374,7 +376,7 @@
                           ident->dtype
                           (HashMap. ident->tx-schema)
                           unique-attrs
-                          (utils/options-for-vector-read options)
+                          (csv-read/options-for-vector-read options)
                           maybe-refs
                           (keys composite-tuples)
                           id-col-indices
@@ -401,6 +403,16 @@
 
 (defn finalize-schema [^ISchemaBuilder schema-builder]
   (.finalizeSchema schema-builder))
+
+
+(defn build-schema [parsers schema-arg schema rschema row-iter options]
+  (let [builder (schema-builder parsers schema-arg schema rschema options)]
+    (reduce (->> (update-schema! builder row-idx row)
+                 (hamf/indexed-accum acc row-idx row))
+            nil
+            (->> (or (:schema-sample-size options) 12800)
+                 (TakeReducer. row-iter)))
+    (finalize-schema schema-builder)))
 
 
 ;                                      (-> (if-let [value-type (-> (nth ident->tx-schema idx)

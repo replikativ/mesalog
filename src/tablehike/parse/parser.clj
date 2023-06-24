@@ -7,7 +7,7 @@
             [charred.coerce :as coerce]
             [tablehike.parse.datetime :as dt]
             [tablehike.parse.utils :as parse-utils]
-            [tablehike.utils :as utils]
+            [tablehike.read :as csv-read]
             [tech.v3.dataset.impl.column-base :as column-base]
             [tech.v3.dataset.io :as ds-io]
             [tech.v3.dataset.io.column-parsers :refer [parse-failure missing] :as parsers]
@@ -23,6 +23,7 @@
            [java.util Iterator List]
            [ham_fisted IMutList Casts]
            [org.roaringbitmap RoaringBitmap]
+           [tablehike.read TakeReducer]
            [tech.v3.dataset.io.context ObjectArrayList]))
 
 
@@ -31,23 +32,6 @@
                      (assoc :string #(if (string? %) % (str %))))]
     (into (apply dissoc coercers #{:duration :local-time :packed-duration :packed-local-time})
           dt/datatype->general-parse-fn-map)))
-
-
-(deftype ^:private TakeReducer [^Iterator src
-                                ^{:unsynchronized-mutable true
-                                  :tag long} count]
-  IReduceInit
-  (reduce [this rfn acc]
-    (let [cnt count]
-      (loop [idx 0
-             continue? (.hasNext src)
-             acc acc]
-        (if (and continue? (< idx cnt))
-          (let [acc (rfn acc (.next src))]
-            (recur (unchecked-inc idx) (.hasNext src) acc))
-          (do
-            (set! count (- cnt idx))
-            acc))))))
 
 
 (definterface PParser
@@ -110,7 +94,7 @@
   PParser
   (parseValue [_this idx value]
     (cond
-      (utils/missing-value? value)
+      (csv-read/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
       (or (string? value)
           (not (identical? (parse-utils/fast-dtype value) parser-dtype)))
@@ -163,7 +147,7 @@
                                   ^List promotion-list]
   PParser
   (parseValue [_this idx value]
-    (if (utils/missing-value? value)
+    (if (csv-read/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
       (do
         (when (nil? parser-dtype)
@@ -328,8 +312,8 @@
 
 
 (defn- options->parsers [input options]
-  (let [row-iter ^Iterator (utils/csv->row-iter input options)
-        header-row (utils/row-iter->header-row row-iter options)]
+  (let [row-iter ^Iterator (csv-read/csv->row-iter input options)
+        header-row (csv-read/row-iter->header-row row-iter options)]
     (when (.hasNext row-iter)
       (iter->parsers header-row row-iter (:parser-sample-size options) options))))
 
@@ -367,7 +351,6 @@
         vector-close (get options :vector-close \])
         {:keys [^ObjectArrayList vector-parsers row-missing-in-col?]}
         (col-vector-parse-context parsers options)]
-    ; TODO Does reduce-kv work instead? If yes, is it comparable in performance?
     (reduce (hamf/indexed-accum
              acc row-idx row
              (reduce (hamf/indexed-accum
@@ -379,8 +362,8 @@
                                      (identical? (nth field 0) vector-open)
                                      (-> (nth field (dec len))
                                          (identical? vector-close)))
-                              (->> (utils/options-for-vector-read options)
-                                   (utils/vector-string->csv-vector field)
+                              (->> (csv-read/options-for-vector-read options)
+                                   (csv-read/vector-string->csv-vector field)
                                    (parse-value! parser row-idx))
                               (.writeObject vector-parsers col-idx nil))))))
                      nil
@@ -391,7 +374,7 @@
 
 
 (defn- options->vector-parsers [parsers input options]
-  (let [row-iter (utils/csv->header-skipped-row-iter input options)]
+  (let [row-iter (csv-read/csv->header-skipped-row-iter input options)]
     (when (.hasNext row-iter)
       (iter->vector-parsers parsers row-iter (:parser-sample-size options) options))))
 
