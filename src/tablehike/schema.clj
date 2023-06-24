@@ -1,7 +1,6 @@
 (ns tablehike.schema
   (:require [clojure.set :as set]
             [clojure.string :as string]
-            [hashp.core]
             [tablehike.parse.datetime :as dt]
             [tablehike.utils :as utils])
   (:import [java.util HashMap HashSet]))
@@ -67,34 +66,31 @@
           parsers)))
 
 
-(defn- init-col-attr-schema
-  ([col-name col-schema-dtype col-parser]
-   (when (some? col-schema-dtype)
-     (merge {:db/ident col-name}
-            (if (vector? col-schema-dtype)
-              (let [{:keys [min-length max-length]} col-parser
-                    homogeneous (apply = col-schema-dtype)]
-                (if (= min-length max-length)
-                  (if homogeneous
-                    {:db/valueType :db.type/tuple
-                     :db/tupleType (first col-schema-dtype)}
-                    ; possible type ref: leave :db/valueType undetermined until later
-                    (if (and (= 2 min-length)
-                             (= :db.type/keyword (nth col-schema-dtype 0)))
-                      {}
-                      {:db/valueType :db.type/tuple
-                       :db/tupleTypes col-schema-dtype})))
-                (if homogeneous
-                  {:db/cardinality :db.cardinality/many}
-                  (let [parts '("Unrecognized data type in column"
-                                col-name
-                                ": attribute with variable length/cardinality"
-                                "and heterogeneous type not allowed")
-                        msg (string/join " " parts)]
-                    (throw (IllegalArgumentException. msg)))))
-              {:db/valueType col-schema-dtype}))))
-  ([col-name col-schema-dtype]
-   (init-col-attr-schema col-name col-schema-dtype nil)))
+(defn- init-col-attr-schema [col-name col-schema-dtype col-parser]
+  (when (some? col-schema-dtype)
+    (merge {:db/ident col-name}
+           (if (vector? col-schema-dtype)
+             (let [{:keys [min-length max-length]} col-parser
+                   homogeneous (apply = col-schema-dtype)]
+               (if (= min-length max-length)
+                 (if homogeneous
+                   {:db/valueType :db.type/tuple
+                    :db/tupleType (first col-schema-dtype)}
+                                        ; possible type ref: leave :db/valueType undetermined until later
+                   (if (and (= 2 min-length)
+                            (= :db.type/keyword (nth col-schema-dtype 0)))
+                     {}
+                     {:db/valueType :db.type/tuple
+                      :db/tupleTypes col-schema-dtype}))
+                 (if homogeneous
+                   {:db/cardinality :db.cardinality/many}
+                   (let [parts '("Unrecognized data type in column"
+                                 col-name
+                                 ": attribute with variable length/cardinality"
+                                 "and heterogeneous type not allowed")
+                         msg (string/join " " parts)]
+                     (throw (IllegalArgumentException. msg))))))
+             {:db/valueType col-schema-dtype}))))
 
 
 (defn- map-tuple-idents->tx-schemas
@@ -110,7 +106,7 @@
       (map? schema-tuple-attrs)
       (map (fn [[t attrs]]
              (and col-name->schema-dtype
-                  [t (->> (map col-name->schema-dtype attrs)
+                  [t (->> (mapv col-name->schema-dtype attrs)
                           (init-tuple-schema t))])))
       (set? schema-tuple-attrs)
       (map (fn [t]
@@ -148,7 +144,7 @@
             ; First init schemas of individual composite tuple columns and of the tuples.
             ; Exclude if any of the attrs is missing throughout.
             (-> (fn [m t cols]
-                  (let [col-dtypes (map col-name->dtype cols)]
+                  (let [col-dtypes (mapv col-name->dtype cols)]
                     (if (every? identity col-dtypes)
                       (-> (fn [m i col]
                             (->> (nth col-dtypes i)
@@ -179,7 +175,9 @@
                  ; Then init schemas for remaining (non-tuple) columns
                  (into ident->tx-schema
                        (map (fn [[col dtype]]
-                              [col (init-col-attr-schema col dtype)]))))
+                              [col (->> (col col-name->index)
+                                        (nth parsers)
+                                        (init-col-attr-schema col dtype))]))))
             update-attr-schema
             (fn [a-schema schema-a]
               (let [schema-a-ns (namespace schema-a)
@@ -245,8 +243,8 @@
             maybe-ident (nth vector-vals 0)
             ident (get index->ident i)
             vector-dtypes (get ident->dtype ident)]
-                                        ; if the first element isn't an ident, or the second has a dtype
-                                        ; not matching that of the ident, this column consists of mere tuples
+        ; if the first element isn't an ident, or the second has a dtype
+        ; not matching that of the ident, this column consists of mere tuples
         (when-not (and (contains? unique-attr-idents maybe-ident)
                        (identical? (get ident->dtype maybe-ident)
                                    (nth vector-dtypes 1)))
@@ -256,26 +254,20 @@
                     (assoc :db/valueType :db.type/tuple)
                     (assoc :db/tupleTypes vector-dtypes)))))))
   (updateSchema [_this row-idx row-vals]
-    ;(prn index->ident)
     (if (nil? id-col-indices)
       (-> (fn [_ i ^String v]
-              (when-not (utils/missing-value? v)
-                (.updateMaybeRefs _this i v)))
+            (when-not (utils/missing-value? v)
+              (.updateMaybeRefs _this i v)))
           (reduce-kv nil row-vals))
       (let [row-id-attr-val (mapv #(nth row-vals %) id-col-indices)
             existing-entity (.get id-attr-val->row-idx row-id-attr-val)
             entity-row-idx (or existing-entity
                                (.put id-attr-val->row-idx row-id-attr-val row-idx)  ; always nil
                                row-idx)]
-        ;(prn "row-idx: " row-idx)
-        ;(prn "row-vals: " row-vals)
-        ;(prn entity-row-idx)
         (-> (fn [_ i ^String v]
-              ;(prn i v)
               (when-not (utils/missing-value? v)
                 (.updateMaybeRefs _this i v)
                 (when-let [a-evs ^"[Ljava.lang.Object;" (aget a-col-idx->evs i)]
-                  ;(prn a-evs)
                   (if existing-entity
                     ; if the current row represents a previously encountered entity with a
                     ; different value for this column, then either of these holds for the column:
@@ -308,25 +300,23 @@
                                        (into []))]
       (->> (into (sorted-map)
                  (comp (map (fn [[ident schema]]
-                                        ;(prn ident schema)
                               (when-let [i (get ident->index ident)]
-                                [i (cond-> (if (nil? (get schema :db/valueType))
-                                             (if (and maybe-refs
-                                                      (.contains maybe-refs i))
-                                               (assoc schema :db/valueType :db.type/ref)
-                                               (->> (nth (get ident->dtype ident) 0)
-                                                    (assoc schema :db/valueType)))
-                                             schema)
-                                     (nil? (get schema :db/cardinality))
-                                     (assoc :db/cardinality :db.cardinality/one))])))
+                                [i (if (nil? (get schema :db/valueType))
+                                     (if (and maybe-refs
+                                              (.contains maybe-refs i))
+                                       (assoc schema :db/valueType :db.type/ref)
+                                       (->> (nth (get ident->dtype ident) 0)
+                                            (assoc schema :db/valueType)))
+                                     schema)])))
                        (filter some?))
                  ident->tx-schema)
-           (into composite-tuple-schemas (map #(nth % 1)))))))
+           (into composite-tuple-schemas (map #(nth % 1)))
+           (mapv (fn [schema]
+                   (cond-> schema
+                     (nil? (get schema :db/cardinality))
+                     (assoc :db/cardinality :db.cardinality/one))))))))
 
 
-; TODO test cases:
-; - empty
-;
 (defn schema-builder [parsers
                       {tuples :db.type/tuple
                        composite-tuples :db.type/compositeTuple
@@ -354,10 +344,6 @@
                                ident->tx-schema)
         id-col-indices (when-not (empty? csv-unique-attrs)
                          ((first csv-unique-attrs) ident->index))
-        ;_ (prn "ident->dtype" ident->dtype)
-        ;_ (prn "ident->tx-schema" ident->tx-schema)
-        ;_ (prn "csv-unique-attrs" csv-unique-attrs)
-        ;_ (prn "id-col-indices" id-col-indices)
         get-indices-with-missing (fn [attr]
                                    (reduce-kv (fn [s ident schema]
                                                 (if (nil? (get schema attr))
@@ -395,7 +381,6 @@
                           id-attr-val->row-idx
                           a-col-idx->evs
                           maybe-tuples))]
-    ;(prn no-cardinality)
     (if (some? id-col-indices)
       (init-schema-builder id-col-indices
                            (HashMap.)
