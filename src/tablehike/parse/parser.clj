@@ -350,7 +350,8 @@
   (let [vector-open (get options :vector-open \[)
         vector-close (get options :vector-close \])
         {:keys [^ObjectArrayList vector-parsers row-missing-in-col?]}
-        (col-vector-parse-context parsers options)]
+        (col-vector-parse-context parsers options)
+        vector-read-opts (csv-read/options-for-vector-read options)]
     (reduce (hamf/indexed-accum
              acc row-idx row
              (reduce (hamf/indexed-accum
@@ -362,8 +363,7 @@
                                      (identical? (nth field 0) vector-open)
                                      (-> (nth field (dec len))
                                          (identical? vector-close)))
-                              (->> (csv-read/options-for-vector-read options)
-                                   (csv-read/vector-string->csv-vector field)
+                              (->> (csv-read/vector-string->csv-vector field vector-read-opts)
                                    (parse-value! parser row-idx))
                               (.writeObject vector-parsers col-idx nil))))))
                      nil
