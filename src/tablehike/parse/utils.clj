@@ -16,3 +16,11 @@
   (if (string? value)
     :string
     (dtype/datatype value)))
+
+
+(defn map-col-names->indices [parsers]
+  (into {}
+        ; map-indexed should do too, since the indices are supposed to be strictly chronological
+        (map (fn [{:keys [column-idx column-name]}]
+               [column-name column-idx]))
+        parsers))

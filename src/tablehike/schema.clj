@@ -121,7 +121,7 @@
                                 refs :db.type/ref
                                 :as schema-arg}]
   (let [col-name->dtype (map-col-names->schema-dtypes parsers)
-        col-name->index (map-col-names->indices parsers)]
+        col-name->index (parse-utils/map-col-names->indices parsers)]
     ; Give user-specified schema precedence in either case: the customer is always right! ;-)
     ; (That also means taking the blame/fall if they're wrong: no free lunch!)
     (if (vector? schema-arg)
