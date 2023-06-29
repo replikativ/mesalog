@@ -3,7 +3,9 @@
             [clojure.string :as string]
             [ham-fisted.api :as hamf]
             [tablehike.parse.datetime :as dt]
-            [tablehike.read :as csv-read])
+            [tablehike.parse.utils :as parse-utils]
+            [tablehike.read :as csv-read]
+            [tablehike.utils :as utils])
   (:import [java.util HashMap HashSet]
            [tablehike.read TakeReducer]))
 
