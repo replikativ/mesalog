@@ -295,29 +295,29 @@
                        (let [schema (t ident->tx-schema)]
                          (if (some? (:db/cardinality schema))
                            schema
-                           (->> (if (every? #(->> (ident->tx-schema %)
-                                                  :db/cardinality
-                                                  (= :db.cardinality/one))
-                                            attrs)
+                           (->> (if (not-any? #(->> (.get ident->tx-schema %)
+                                                    :db/cardinality
+                                                    (= :db.cardinality/many))
+                                              attrs)
                                   :db.cardinality/one
                                   :db.cardinality/many)
                                 (assoc schema :db/cardinality))))))
                 composite-tuples)]
-      (->> (into (sorted-map)
-                 (comp (map (fn [[ident schema]]
-                              (when-let [i (get ident->index ident)]
-                                [i (cond-> (if (some? (get schema :db/valueType))
-                                             schema
-                                             (if (and maybe-refs
-                                                      (.contains maybe-refs i))
-                                               (assoc schema :db/valueType :db.type/ref)
-                                               (->> (nth (get ident->dtype ident) 0)
-                                                    (assoc schema :db/valueType))))
-                                     (nil? (get schema :db/cardinality))
-                                     (assoc :db/cardinality :db.cardinality/one))])))
-                       (filter some?))
-                 ident->tx-schema)
-           (into composite-tuple-schemas (map #(nth % 1)))))))
+          (->> (into (sorted-map)
+                     (comp (map (fn [[ident schema]]
+                                  (when-let [i (get ident->index ident)]
+                                    [i (cond-> (if (some? (get schema :db/valueType))
+                                                 schema
+                                                 (if (and maybe-refs
+                                                          (.contains maybe-refs i))
+                                                   (assoc schema :db/valueType :db.type/ref)
+                                                   (->> (nth (get ident->dtype ident) 0)
+                                                        (assoc schema :db/valueType))))
+                                         (nil? (get schema :db/cardinality))
+                                         (assoc :db/cardinality :db.cardinality/one))])))
+                           (filter some?))
+                     ident->tx-schema)
+               (into composite-tuple-schemas (map #(nth % 1)))))))
 
 
 (defn update-schema! [^ISchemaBuilder schema-builder row-idx row-vals]
