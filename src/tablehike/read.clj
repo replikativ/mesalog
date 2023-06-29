@@ -49,17 +49,15 @@
     row-iter))
 
 
-(defn options-for-vector-read [options]
-  (if-some [vs (get options :vector-separator)]
-    (assoc options :separator vs)
-    options))
-
-
-(defn vector-string->csv-vector [string options]
-  (let [len (.length ^String string)]
-    (-> (subs string 1 (dec len))
-        (charred/read-csv options)
-        (nth 0))))
+(defn get-string->vector-parser [options]
+  (let [opts (if-some [vs (get options :vector-separator)]
+               (assoc options :separator vs)
+               options)]
+    (fn [string]
+      (let [len (.length ^String string)]
+        (-> (subs string 1 (dec len))
+            (charred/read-csv opts)
+            (nth 0))))))
 
 
 (defn missing-value?

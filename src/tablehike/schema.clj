@@ -221,7 +221,7 @@
                         ident->dtype
                         ^HashMap ident->tx-schema
                         unique-attr-idents
-                        vector-read-opts
+                        string->vector-parser
                         ^HashSet maybe-refs
                         composite-tuples
                         id-col-indices
@@ -232,7 +232,7 @@
   (updateMaybeRefs [_this i ^String v]
     (when (and (some? maybe-refs)
                (.contains maybe-refs i))
-      (let [vector-vals (csv-read/vector-string->csv-vector v vector-read-opts)
+      (let [vector-vals (string->vector-parser v)
             maybe-ident (nth vector-vals 0)
             ident (nth index->ident i)
             vector-dtypes (get ident->dtype ident)]
@@ -385,7 +385,7 @@
                           ident->dtype
                           (HashMap. ident->tx-schema)
                           unique-attrs
-                          (csv-read/options-for-vector-read options)
+                          (csv-read/get-string->vector-parser options)
                           maybe-refs
                           composite-tuples
                           id-col-indices
