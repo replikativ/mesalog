@@ -67,7 +67,7 @@
      (merge {:db/ident col-name}
             (if (vector? col-schema-dtype)
               (let [{:keys [min-length max-length]} col-parser
-                    homogeneous (apply = col-schema-dtype)]
+                    homogeneous (utils/homogeneous-sequence? col-schema-dtype)]
                 (if (= min-length max-length)
                   (if homogeneous
                     {:db/valueType :db.type/tuple
@@ -113,11 +113,6 @@
                           (init-tuple-schema t))])))
       (nil? schema-tuple-attrs)
       (map identity))))
-
-
-(defn- is-homogeneous-sequence? [dtype]
-  (and (sequential? dtype)
-       (apply = dtype)))
 
 
 (defn- map-idents->tx-schemas [parsers
@@ -209,7 +204,7 @@
                             [ident (if (and (-> (:db/cardinality schema)
                                                 (identical? :db.cardinality/one))
                                             (-> (ident col-name->dtype)
-                                                is-homogeneous-sequence?))
+                                                utils/homogeneous-sequence?))
                                      (-> (assoc schema :db/valueType :db.type/tuple)
                                          (assoc :db/tupleType
                                                 (first (ident col-name->dtype))))
@@ -378,7 +373,7 @@
                          (->> (nth parsers x)
                               :field-parser-data
                               (map :parser-dtype)
-                              is-homogeneous-sequence?))
+                              utils/homogeneous-sequence?))
                        (get-indices-with-missing :db/valueType))
              (into {} (map (fn [[k v]]
                              [k (HashSet. (into #{} v))]))))

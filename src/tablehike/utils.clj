@@ -25,3 +25,8 @@
                 row)))
           init
           (keys tuple-map)))
+
+
+(defn homogeneous-sequence? [v]
+  (and (sequential? v)
+       (apply = v)))
