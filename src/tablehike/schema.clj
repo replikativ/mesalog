@@ -32,15 +32,7 @@
         parsers))
 
 
-(defn- map-col-names->indices [parsers]
-  (into {}
-        ; map-indexed should do too, since the indices are supposed to be strictly chronological
-        (map (fn [{:keys [column-idx column-name]}]
-               [column-name column-idx]))
-        parsers))
-
-
-(defn- map-indices->idents [tuples parsers]
+(defn- map-indices->idents [parsers tuples]
   (let [tuple-col-names->ident
         (when (map? tuples)
           (reduce-kv (fn [m t attrs]
@@ -58,17 +50,15 @@
          (into [] (map #(nth % 1))))))
 
 
-(defn- map-idents->indices [index->ident composite-tuples]
-  (let [ident->index (reduce-kv (fn [m i ident]
-                                  (if (contains? m ident)
-                                    (update m ident #(conj % i))
-                                    (assoc m ident [i])))
-                                {}
-                                index->ident)]
-    (into ident->index
-          (map (fn [[t attrs]]
-                 [t (mapv ident->index attrs)]))
-          composite-tuples)))
+(defn- map-idents->indices [parsers tuples composite-tuples]
+  (let [col-name->index (parse-utils/map-col-names->indices parsers)
+        all-tuples-map (cond-> composite-tuples
+                         (map? tuples) (merge tuples))]
+    (->> (merge all-tuples-map col-name->index)
+         (into {} (map (fn [[ident v]]
+                         [ident (if (coll? v)
+                                  (mapv col-name->index v)
+                                  [v])]))))))
 
 
 (defn- init-col-attr-schema
@@ -351,8 +341,8 @@
                       {rschema-unique-id :db.unique/id
                        rschema-unique-val :db.unique/value}
                       options]
-  (let [index->ident (map-indices->idents tuples parsers)
-        ident->index (map-idents->indices index->ident composite-tuples)
+  (let [index->ident (map-indices->idents parsers tuples)
+        ident->index (map-idents->indices parsers tuples composite-tuples)
         ; mapping from idents for existing attributes in the DB, but colnames for CSV attrs
         ; since this information won't be needed at the ident level for CSV contents anyway
         ident->dtype (merge (into {}
