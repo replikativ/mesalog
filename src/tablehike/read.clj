@@ -49,7 +49,7 @@
     row-iter))
 
 
-(defn get-string->vector-parser [options]
+(defn string->vector-parser [options]
   (let [opts (if-some [vs (get options :vector-separator)]
                (assoc options :separator vs)
                options)]
