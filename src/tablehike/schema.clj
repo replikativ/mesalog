@@ -6,7 +6,8 @@
             [tablehike.parse.utils :as parse-utils]
             [tablehike.read :as csv-read]
             [tablehike.utils :as utils])
-  (:import [java.util HashMap HashSet]
+  (:import [clojure.lang Indexed]
+           [java.util HashMap HashSet]
            [tablehike.read TakeReducer]))
 
 
