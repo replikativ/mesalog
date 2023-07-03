@@ -33,33 +33,17 @@
         parsers))
 
 
-(defn- map-indices->idents [parsers tuples]
-  (let [tuple-col-names->ident
-        (when (map? tuples)
-          (reduce-kv (fn [m t attrs]
-                       (reduce (fn [m col-name]
-                                 (assoc m col-name t))
-                               m
-                               attrs))
-                     {}
-                     tuples))]
-    (->> (into (sorted-map)
-               (map (fn [{:keys [column-idx column-name]}]
-                      [column-idx (-> (column-name tuple-col-names->ident)
-                                      (or column-name))]))
-               parsers)
-         (into [] (map #(nth % 1))))))
-
-
-(defn- map-idents->indices [parsers tuples composite-tuples]
+(defn- map-idents->indices [idents parsers tuples composite-tuples]
   (let [col-name->index (parse-utils/map-col-names->indices parsers)
         all-tuples-map (cond-> composite-tuples
                          (map? tuples) (merge tuples))]
-    (->> (merge all-tuples-map col-name->index)
-         (into {} (map (fn [[ident v]]
-                         [ident (if (coll? v)
-                                  (mapv col-name->index v)
-                                  [v])]))))))
+    (into {}
+          (map (fn [ident]
+                 [ident (mapv col-name->index
+                              (condp contains? ident
+                                col-name->index [ident]
+                                all-tuples-map (get all-tuples-map ident)))]))
+          idents)))
 
 
 (defn- init-col-attr-schema
