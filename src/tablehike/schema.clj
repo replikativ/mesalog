@@ -106,7 +106,11 @@
                                 refs :db.type/ref
                                 :as schema-arg}]
   (let [col-name->dtype (map-col-names->schema-dtypes parsers)
-        col-name->index (parse-utils/map-col-names->indices parsers)]
+        col-name->index (parse-utils/map-col-names->indices parsers)
+        col-name-dtype->tx-schema (fn [col dtype]
+                                    (->> (col col-name->index)
+                                         (nth parsers)
+                                         (init-col-attr-schema col dtype)))]
     ; Give user-specified schema precedence in either case: the customer is always right! ;-)
     ; (That also means taking the blame/fall if they're wrong: no free lunch!)
     (if (vector? schema-arg)
@@ -153,9 +157,7 @@
                  ; Then init schemas for remaining (non-tuple) columns
                  (into ident->tx-schema
                        (map (fn [[col dtype]]
-                              [col (->> (col col-name->index)
-                                        (nth parsers)
-                                        (init-col-attr-schema col dtype))]))))
+                              [col (col-name-dtype->tx-schema col dtype)]))))
             update-attr-schema
             (fn [a-schema schema-a]
               (let [schema-a-ns (namespace schema-a)
@@ -174,7 +176,14 @@
                           (reduce (fn [m a]
                                     (if (contains? m a)
                                       (update m a #(update-attr-schema % schema-a))
-                                      m))
+                                      ; in any unusual case where columns are used as both
+                                      ; independent attributes and part of a tuple
+                                      (if (contains? col-name->dtype a)
+                                        (assoc m a (update-attr-schema
+                                                    (->> (col-name->dtype a)
+                                                         (col-name-dtype->tx-schema a))
+                                                    schema-a))
+                                        m)))
                                   m
                                   col-attrs))
                         ident->tx-schema)
@@ -202,13 +211,13 @@
   (finalizeSchema []))
 
 
-(deftype SchemaBuilder [index->ident
+(deftype SchemaBuilder [^Indexed col-index->name
+                        ident->indices
                         ident->dtype
                         ^HashMap ident->tx-schema
                         unique-attr-idents
                         string->vector-parser
                         ^HashSet maybe-refs
-                        composite-tuples
                         id-col-indices
                         ^HashMap id-attr-val->row-idx
                         ^"[Ljava.lang.Object;" a-col-idx->evs
@@ -219,18 +228,19 @@
                (.contains maybe-refs i))
       (let [vector-vals (string->vector-parser v)
             maybe-ident (nth vector-vals 0)
-            ident (nth index->ident i)
+            ident (.nth col-index->name i)
             vector-dtypes (get ident->dtype ident)]
         ; if the first element isn't an ident, or the second has a dtype
         ; not matching that of the ident, this column consists of mere tuples
         (when-not (and (contains? unique-attr-idents maybe-ident)
                        (identical? (get ident->dtype maybe-ident)
                                    (nth vector-dtypes 1)))
-          (.put ident->tx-schema
-                ident
-                (-> (.get ident->tx-schema ident)
-                    (assoc :db/valueType :db.type/tuple)
-                    (assoc :db/tupleTypes vector-dtypes)))))))
+          (do (.put ident->tx-schema
+                    ident
+                    (-> (.get ident->tx-schema ident)
+                        (assoc :db/valueType :db.type/tuple)
+                        (assoc :db/tupleTypes vector-dtypes)))
+              (.remove maybe-refs i))))))
   (updateSchema [_this row-idx row-vals]
     (if (nil? id-col-indices)
       (-> (fn [_ i ^String v]
@@ -251,58 +261,43 @@
                     ; different value for this column, then either of these holds for the column:
                     ; 1. It's cardinality-many.
                     ; 2. It's a tuple
-                    (when (-> (aget a-evs entity-row-idx)
-                              (.equals ^String v)
-                              not)
-                      (let [ident (nth index->ident i)
-                            tx-schema (.get ident->tx-schema ident)
-                            maybe-tuple (and maybe-tuples
-                                             (.contains maybe-tuples i))]
-                        (do (->> (if maybe-tuple
-                                   (-> (assoc tx-schema :db/valueType :db.type/tuple)
-                                       (assoc :db/tupleType
-                                              (nth (get ident->dtype ident) 0)))
-                                   (assoc tx-schema :db/cardinality :db.cardinality/many))
-                                 (.put ident->tx-schema ident))
-                            (aset a-col-idx->evs i nil)
-                            (when maybe-tuple
-                              (.remove maybe-tuples i)))))
+                    (when (not (-> (aget a-evs entity-row-idx)
+                                   (.equals ^String v)))
+                      (do (when (and maybe-tuples
+                                     (.contains maybe-tuples i))
+                            (let [ident (.nth col-index->name i)]
+                              (do (.put ident->tx-schema
+                                        ident
+                                        (-> (.get ident->tx-schema ident)
+                                            (assoc :db/valueType :db.type/tuple)
+                                            (assoc :db/tupleType
+                                                   (nth (get ident->dtype ident) 0))))
+                                  (.remove maybe-tuples i))))
+                          (aset a-col-idx->evs i nil)))
                     (aset a-evs entity-row-idx v)))))
             (reduce-kv nil row-vals)))))
   (finalizeSchema [_this]
-    (let [ident->index
-          (->> index->ident
-               (into {} (map-indexed (fn [i ident]
-                                       [ident i]))))
-          composite-tuple-schemas
-          (into []
-                (map (fn [[t attrs]]
-                       (let [schema (t ident->tx-schema)]
-                         (if (some? (:db/cardinality schema))
-                           schema
-                           (->> (if (not-any? #(->> (.get ident->tx-schema %)
-                                                    :db/cardinality
-                                                    (= :db.cardinality/many))
-                                              attrs)
-                                  :db.cardinality/one
-                                  :db.cardinality/many)
-                                (assoc schema :db/cardinality))))))
-                composite-tuples)]
-          (->> (into (sorted-map)
-                     (comp (map (fn [[ident schema]]
-                                  (when-let [i (get ident->index ident)]
-                                    [i (cond-> (if (some? (get schema :db/valueType))
-                                                 schema
-                                                 (if (and maybe-refs
-                                                          (.contains maybe-refs i))
-                                                   (assoc schema :db/valueType :db.type/ref)
-                                                   (->> (nth (get ident->dtype ident) 0)
-                                                        (assoc schema :db/valueType))))
-                                         (nil? (get schema :db/cardinality))
-                                         (assoc :db/cardinality :db.cardinality/one))])))
-                           (filter some?))
-                     ident->tx-schema)
-               (into composite-tuple-schemas (map #(nth % 1)))))))
+    (->> (into (sorted-map)
+               (map (fn [[ident schema]]
+                      (let [indices (get ident->indices ident)
+                            schema (if (some? (get schema :db/valueType))
+                                     schema
+                                     (->> (if (and maybe-refs
+                                                   (.contains maybe-refs
+                                                              (nth indices 0)))
+                                            :db.type/ref
+                                            (nth (get ident->dtype ident) 0))
+                                          (assoc schema :db/valueType)))]
+                        [indices (if (some? (get schema :db/cardinality))
+                                   schema
+                                   (->> (if (or (nil? a-col-idx->evs)
+                                                (-> #(some? (aget a-col-idx->evs %))
+                                                    (every? indices)))
+                                          :db.cardinality/one
+                                          :db.cardinality/many)
+                                        (assoc schema :db/cardinality)))])))
+               ident->tx-schema)
+         (into [] (map #(nth % 1))))))
 
 
 (defn update-schema! [^ISchemaBuilder schema-builder row-idx row-vals]
@@ -321,9 +316,7 @@
                       {rschema-unique-id :db.unique/id
                        rschema-unique-val :db.unique/value}
                       options]
-  (let [index->ident (map-indices->idents parsers tuples)
-        ident->index (map-idents->indices parsers tuples composite-tuples)
-        ; mapping from idents for existing attributes in the DB, but colnames for CSV attrs
+  (let [; mapping from idents for existing attributes in the DB, but colnames for CSV attrs
         ; since this information won't be needed at the ident level for CSV contents anyway
         ident->dtype (merge (into {}
                                   (map (fn [ident schema]
@@ -338,12 +331,14 @@
                                               ident)))
                                      (filter some?))
                                ident->tx-schema)
+        ident->indices (-> (keys ident->tx-schema)
+                           (map-idents->indices parsers tuples composite-tuples))
         id-col-indices (when-not (empty? csv-unique-attrs)
-                         ((first csv-unique-attrs) ident->index))
+                         ((first csv-unique-attrs) ident->indices))
         get-indices-with-missing (fn [attr]
                                    (reduce-kv (fn [s ident schema]
                                                 (if (nil? (get schema attr))
-                                                  (into s (get ident->index ident))
+                                                  (into s (get ident->indices ident))
                                                   s))
                                               #{}
                                               ident->tx-schema))
@@ -366,13 +361,13 @@
                        (set/union rschema-unique-id rschema-unique-val csv-unique-attrs))
         init-schema-builder
         (fn [id-col-indices id-attr-val->row-idx a-col-idx->evs maybe-tuples]
-          (SchemaBuilder. index->ident
+          (SchemaBuilder. (mapv :column-name parsers)
+                          ident->indices
                           ident->dtype
                           (HashMap. ident->tx-schema)
                           unique-attrs
-                          (csv-read/get-string->vector-parser options)
+                          (csv-read/string->vector-parser options)
                           maybe-refs
-                          composite-tuples
                           id-col-indices
                           id-attr-val->row-idx
                           a-col-idx->evs
