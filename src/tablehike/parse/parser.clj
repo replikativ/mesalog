@@ -116,7 +116,7 @@
 
 
 (def default-parser-datatype-sequence
-  [:boolean :int16 :int32 :int64 :float64 :uuid
+  [:boolean :int64 :float32 :float64 :uuid
    :zoned-date-time :local-date-time :local-date :string])
 
 
