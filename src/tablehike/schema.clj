@@ -33,19 +33,6 @@
         parsers))
 
 
-(defn- map-idents->indices [idents parsers tuples composite-tuples]
-  (let [col-name->index (parse-utils/map-col-names->indices parsers)
-        all-tuples-map (cond-> composite-tuples
-                         (map? tuples) (merge tuples))]
-    (into {}
-          (map (fn [ident]
-                 [ident (mapv col-name->index
-                              (condp contains? ident
-                                col-name->index [ident]
-                                all-tuples-map (get all-tuples-map ident)))]))
-          idents)))
-
-
 (defn- init-col-attr-schema
   ([col-name col-schema-dtype col-parser]
    (when (some? col-schema-dtype)
@@ -332,7 +319,7 @@
                                      (filter some?))
                                ident->tx-schema)
         ident->indices (-> (keys ident->tx-schema)
-                           (map-idents->indices parsers tuples composite-tuples))
+                           (parse-utils/map-idents->indices parsers tuples composite-tuples))
         id-col-indices (when-not (empty? csv-unique-attrs)
                          ((first csv-unique-attrs) ident->indices))
         get-indices-with-missing (fn [attr]

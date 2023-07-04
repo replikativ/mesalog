@@ -18,9 +18,29 @@
     (dtype/datatype value)))
 
 
+(defn homogeneous-sequence? [v]
+  (and (sequential? v)
+       (apply = v)))
+
+
 (defn map-col-names->indices [parsers]
   (into {}
-        ; map-indexed should do too, since the indices are supposed to be strictly chronological
         (map (fn [{:keys [column-idx column-name]}]
                [column-name column-idx]))
         parsers))
+
+
+(defn map-idents->indices
+  ([idents parsers tuples composite-tuples]
+   (let [col-name->index (map-col-names->indices parsers)
+         all-tuples-map (cond-> composite-tuples
+                          (map? tuples) (merge tuples))]
+     (into {}
+           (map (fn [ident]
+                  [ident (mapv col-name->index
+                               (condp contains? ident
+                                 col-name->index [ident]
+                                 all-tuples-map (get all-tuples-map ident)))]))
+           idents)))
+  ([idents parsers tuples]
+   (map-idents->indices idents parsers tuples nil)))
