@@ -381,18 +381,3 @@
             (->> (or (:schema-sample-size options) 12800)
                  (TakeReducer. row-iter)))
     (finalize-schema builder)))
-
-
-;                                      (-> (if-let [value-type (-> (nth ident->tx-schema idx)
-;                                                                  (get :db/valueType))]
-;                                            (as-> (name value-type) type-name
-;                                              (case type-name
-;                                                "instant" java.util.Date
-;                                                "uuid" java.util.UUID
-;                                                "keyword" clojure.lang.Keyword
-;                                                "symbol" clojure.lang.Symbol
-;                                                (->> (capitalize type-name)
-;                                                     (str "java.lang.")
-;                                                     java.lang.Class/forName)))
-;                                            Object)
-;                                          (make-array csv-read/schema-inference-batch-size))))
