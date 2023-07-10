@@ -16,7 +16,7 @@
             [tech.v3.datatype.bitmap :as bitmap]
             [tech.v3.datatype.datetime.operations :as dt-ops]
             [tech.v3.parallel.for :as pfor]
-            [ham-fisted.api :as hamf]
+            [ham-fisted.reduce :as hamf-rf]
             [clojure.string :as str])
   (:import [clojure.lang IFn IReduceInit PersistentVector]
            [java.time.format DateTimeFormatter]
@@ -298,9 +298,9 @@
          options :string nil (fn [^long col-idx]
                                (get header-row col-idx)))]
     ; TODO Does reduce-kv work instead? If yes, is it comparable in performance?
-    (reduce (hamf/indexed-accum
+    (reduce (hamf-rf/indexed-accum
              acc row-idx row
-             (reduce (hamf/indexed-accum
+             (reduce (hamf-rf/indexed-accum
                       acc col-idx field
                       (-> (col-idx->parser col-idx)
                           (parse-value! row-idx field)))
@@ -352,9 +352,9 @@
         {:keys [^ObjectArrayList vector-parsers row-missing-in-col?]}
         (col-vector-parse-context parsers options)
         string->vector (csv-read/string->vector-parser options)]
-    (reduce (hamf/indexed-accum
+    (reduce (hamf-rf/indexed-accum
              acc row-idx row
-             (reduce (hamf/indexed-accum
+             (reduce (hamf-rf/indexed-accum
                       acc col-idx field
                       (if-some [parser (.readObject vector-parsers col-idx)]
                         (when (not (row-missing-in-col? row-idx col-idx))

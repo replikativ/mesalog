@@ -1,7 +1,7 @@
 (ns tablehike.schema
   (:require [clojure.set :as set]
             [clojure.string :as string]
-            [ham-fisted.api :as hamf]
+            [ham-fisted.reduce :as hamf-rf]
             [tablehike.parse.datetime :as dt]
             [tablehike.parse.utils :as parse-utils]
             [tablehike.read :as csv-read])
@@ -375,7 +375,7 @@
 (defn build-schema [parsers schema-arg schema rschema row-iter options]
   (let [builder (schema-builder parsers schema-arg schema rschema options)]
     (reduce (->> (update-schema! builder row-idx row)
-                 (hamf/indexed-accum acc row-idx row))
+                 (hamf-rf/indexed-accum acc row-idx row))
             nil
             (->> (or (:schema-sample-size options) 12800)
                  (TakeReducer. row-iter)))
