@@ -1,7 +1,6 @@
 (ns tablehike.core
   (:require [clojure.string :as str]
             [datahike.api :as d]
-            [ham-fisted.api :as hamf]
             [tablehike.parse.parser :as parser]
             [tablehike.parse.datetime :as dt]
             [tablehike.parse.utils :as parse-utils]
