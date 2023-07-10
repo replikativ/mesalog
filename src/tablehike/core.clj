@@ -6,8 +6,7 @@
             [tablehike.parse.datetime :as dt]
             [tablehike.parse.utils :as parse-utils]
             [tablehike.read :as csv-read]
-            [tablehike.schema :as schema]
-            [tablehike.utils :as utils])
+            [tablehike.schema :as schema])
   (:import [clojure.lang Indexed IPersistentVector IReduceInit]
            [java.util Iterator List]
            [tablehike.read TakeReducer]))
@@ -23,7 +22,7 @@
         parse-fns (-> #(if (= :vector (:parser-dtype %))
                          (let [field-parsers (:field-parser-data %)
                                field-dtypes (mapv :parser-dtype field-parsers)]
-                           (if (utils/homogeneous-sequence? field-dtypes)
+                           (if (parse-utils/homogeneous-sequence? field-dtypes)
                              (let [parse-fn (:parse-fn (nth field-parsers 0))]
                                (fn [v]
                                  (->> (string->vector v)
@@ -164,118 +163,3 @@
                   (d/transact conn))
              (recur (.hasNext row-iter)))))
      cfg)))
-
-
-(comment
-  (s/keys :req [:db/ident :db/valueType :db/cardinality]
-          :opt [:db/id :db/unique :db/index :db.install/_attribute :db/doc :db/noHistory :db/tupleType :db/tupleTypes])
-  #{:db.unique/identity
-    :db.unique/value
-    :db.cardinality/many
-    :db.type/ref
-    :db.type/tuple :db/tupleType or :db/tupleTypes.
-    :db.type/compositeTuplepleAttrs.
-    :db/isComponent
-    :db/index
-    :db/noHistory}
-  )
-
-)
-
-; TODO types: uuid, keyword, ...
-; TODO allow user spec of parser and schema inference batch size
-; TODO DH feature request for one-shot cardinality-many tx?
-; schema, tx-data, maybe-refs, maybe-tuples, refs
-; colidx->colname
-; colname->tempid
-; TODO vectors
-; TODO cardinality
-; tx-data: {tempid: {col: vals}}, :db/add vector
-; maybe-refs: {tempid: {col: vals}}, :db/add vector
-; maybe-tuples
-; over columns:
-; if type missing:
-;   if len 2 and keyword 1st:
-;       maybe-ref
-;   else:
-;       maybe-tuple
-; else:
-;   when ref: ref
-; over rows:
-;   check whether column is exception, else add to tx-data
-; transact maybe-refs etc. after the rest
-
-(deftype ^:private TakeReducer [^Iterator src
-                                ^{:unsynchronized-mutable true
-                                  :tag                    long} count]
-  IReduceInit
-  (reduce [this rfn acc]
-    (let [cnt count]
-      (loop [idx       0
-             continue? (.hasNext src)
-             acc       acc]
-        (if (and continue? (< idx cnt))
-          (let [acc (rfn acc (.next src))]
-            (recur (unchecked-inc idx) (.hasNext src) acc))
-          (do
-            (set! count (- cnt idx))
-            acc))))))
-
-(defn load-csv
-  ([csv-file]
-   (load-csv csv-file nil {} {}))
-  ([csv-file cfg]
-   (load-csv csv-file cfg {} {}))
-  ([csv-file cfg schema]
-   (load-csv csv-file cfg schema {}))
-  ([csv-file cfg schema options]
-   (let [parsers (parser/csv->parsers csv-file options)
-         cfg (or cfg {})
-         _ (if-not (d/database-exists? cfg)
-             (d/create-database cfg))
-         conn (d/connect cfg)
-         schema-builder (schema/schema-builder parsers schema
-                                               (d/schema @conn)
-                                               (d/reverse-schema @conn)
-                                               options)
-         ; TODO handle nil (no data)
-         ;; ident-tx-schemas (init-tx-schema schema parsers)
-         row-iter (utils/csv->row-iter csv-file options)
-         ;; _ (utils/row-iter->header-row row-iter options)
-         ;; (iter->schema-and-first-batch row-iter ident-tx-schemas)
-         ;; {ref-attrs :db.type/ref
-         ;;  composite-tuples :db.type/compositeTuple} schema
-         ;; ds-seq (->> (cond-> {:key-fn keyword}
-         ;;               batch-size (assoc :batch-size batch-size))
-         ;;             (csv/csv->dataset-seq csv-file))
-         ;; cols-info (get-column-info (first ds-seq))
-         ;; coltypes (zipmap (:name cols-info) (:datatype cols-info))
-         ;; schema (schema-for-transact schema coltypes @conn)
-
-         ]
-
-     (reduce (hamf/indexed-accum acc row-idx row
-                                 (.updateSchema schema-builder row-idx row))
-             nil
-             (TakeReducer. row-iter (or (:schema-sample-size options) 1000)))
-
-     ;; (when (not-empty schema)
-     ;;   (d/transact conn schema))
-     ;; (doseq [ds ds-seq]
-     ;;   (->> (dataset-for-transact (cond-> ds
-     ;;                                (not-empty ref-map) (dataset-with-ref-cols coltypes ref-map @conn))
-     ;;                              (d/reverse-schema @conn)
-     ;;                              tuple-map)
-     ;;        (d/transact conn)))
-
-     )
-   )
-
-  )
-
-(comment
-
-
-  (load-csv "resources/agencies.csv")
-
-  )

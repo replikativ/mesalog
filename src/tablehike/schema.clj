@@ -4,8 +4,7 @@
             [ham-fisted.api :as hamf]
             [tablehike.parse.datetime :as dt]
             [tablehike.parse.utils :as parse-utils]
-            [tablehike.read :as csv-read]
-            [tablehike.utils :as utils])
+            [tablehike.read :as csv-read])
   (:import [clojure.lang Indexed]
            [java.util HashMap HashSet]
            [tablehike.read TakeReducer]))
@@ -39,12 +38,12 @@
      (merge {:db/ident col-name}
             (if (vector? col-schema-dtype)
               (let [{:keys [min-length max-length]} col-parser
-                    homogeneous (utils/homogeneous-sequence? col-schema-dtype)]
+                    homogeneous (parse-utils/homogeneous-sequence? col-schema-dtype)]
                 (if (= min-length max-length)
                   (if homogeneous
                     {:db/valueType :db.type/tuple
                      :db/tupleType (first col-schema-dtype)}
-                                        ; possible type ref: leave :db/valueType undetermined until later
+                    ; possible type ref: leave :db/valueType undetermined until later
                     (if (and (= 2 min-length)
                              (= :db.type/keyword (nth col-schema-dtype 0)))
                       {}
@@ -185,7 +184,7 @@
                             [ident (if (and (-> (:db/cardinality schema)
                                                 (identical? :db.cardinality/one))
                                             (-> (ident col-name->dtype)
-                                                utils/homogeneous-sequence?))
+                                                parse-utils/homogeneous-sequence?))
                                      (-> (assoc schema :db/valueType :db.type/tuple)
                                          (assoc :db/tupleType
                                                 (first (ident col-name->dtype))))
@@ -340,7 +339,7 @@
                          (->> (nth parsers x)
                               :field-parser-data
                               (map :parser-dtype)
-                              utils/homogeneous-sequence?))
+                              parse-utils/homogeneous-sequence?))
                        (get-indices-with-missing :db/valueType))
              (into {} (map (fn [[k v]]
                              [k (HashSet. (into #{} v))]))))
