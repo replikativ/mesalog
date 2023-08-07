@@ -8,16 +8,11 @@
             [tablehike.parse.datetime :as dt]
             [tablehike.parse.utils :as parse-utils]
             [tablehike.read :as csv-read]
-            [tech.v3.dataset.impl.column-base :as column-base]
-            [tech.v3.dataset.io :as ds-io]
             [tech.v3.dataset.io.column-parsers :refer [parse-failure missing] :as parsers]
-            [tech.v3.dataset.io.context :as parse-context]
             [tech.v3.datatype :as dtype]
             [tech.v3.datatype.bitmap :as bitmap]
-            [tech.v3.datatype.datetime.operations :as dt-ops]
-            [tech.v3.parallel.for :as pfor]
             [ham-fisted.reduce :as hamf-rf]
-            [clojure.string :as str])
+            [clojure.string :as string])
   (:import [clojure.lang IFn IReduceInit PersistentVector]
            [java.time.format DateTimeFormatter]
            [java.util Iterator List]
