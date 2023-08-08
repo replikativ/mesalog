@@ -18,7 +18,24 @@
            [ham_fisted IMutList Casts]
            [org.roaringbitmap RoaringBitmap]
            [tablehike.read TakeReducer]
-           [tech.v3.dataset.io.context ObjectArrayList]))
+           [tech.v3.datatype ArrayHelpers ObjectBuffer]))
+
+
+(deftype ObjectArrayList [^{:unsynchronized-mutable true
+                            :tag 'objects} data]
+  ObjectBuffer
+  (lsize [_this] (alength ^objects data))
+  (writeObject [_this idx value]
+    (when (>= idx (alength ^objects data))
+      (let [old-len (alength ^objects data)
+            new-len (* 2 idx)
+            new-data (object-array new-len)]
+        (System/arraycopy data 0 new-data 0 old-len)
+        (set! data new-data)))
+    (ArrayHelpers/aset ^objects data idx value))
+  (readObject [_this idx]
+    (when (< idx (alength ^objects data))
+      (aget ^objects data idx))))
 
 
 (def default-coercers
