@@ -1,7 +1,6 @@
 (ns tablehike.parse.parser
   (:require [datahike.api :as d]
             [clojure.java.io :as io]
-            [clojure.set :as cljset]
             [clojure.string :as string]
             [charred.api :as charred]
             [charred.coerce :as coerce]
@@ -60,7 +59,7 @@
   (let [[dtype parse-fn] (if (vector? parser-entry)
                            parser-entry
                            [parser-entry])
-        formattable-dt-dtypes (cljset/difference dt/datetime-datatypes #{:instant :packed-instant})
+        formattable-dt-dtypes (disj dt/datetime-datatypes :instant)
         datetime-formatter-parse-fn (fn [dtype formatter]
                                       (parse-utils/make-safe-parse-fn
                                        (dt/datetime-formatter-parse-fn dtype formatter)))]
