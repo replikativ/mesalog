@@ -147,9 +147,10 @@
             update-attr-schema
             (fn [a-schema schema-a]
               (let [schema-a-ns (namespace schema-a)
-                    [k v] (if (.equals "db" schema-a-ns)
-                            ; :db/unique, :db/index, :db/noHistory
-                            ; doesn't apply to :db/ident, :db/id, :db/doc: for schema attributes only
+                    [k v] (if (->> (name schema-a)
+                                   (contains? #{"index" "noHistory"})
+                                   (and (.equals "db" schema-a-ns)))
+                            ; doesn't apply to :db/ident, :db/id, :db/doc
                             [schema-a true]
                             (if (.equals "db.type" schema-a-ns)
                               [:db/valueType schema-a]
