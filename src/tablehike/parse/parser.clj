@@ -7,7 +7,7 @@
             [tablehike.parse.datetime :as dt]
             [tablehike.parse.utils :as parse-utils]
             [tablehike.read :as csv-read]
-            [tech.v3.dataset.io.column-parsers :refer [parse-failure missing] :as parsers]
+            [tech.v3.dataset.io.column-parsers :refer [parse-failure] :as parsers]
             [tech.v3.datatype :as dtype]
             [tech.v3.datatype.bitmap :as bitmap]
             [ham-fisted.reduce :as hamf-rf]

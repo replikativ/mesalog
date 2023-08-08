@@ -2,7 +2,6 @@
   (:require [charred.api :as charred]
             [charred.coerce :as coerce]
             [tech.v3.dataset.io :as ds-io]
-            [tech.v3.dataset.io.column-parsers :refer [missing]]
             [tech.v3.parallel.for :as pfor])
   (:import [clojure.lang IReduceInit]
            [java.util Iterator]
@@ -69,5 +68,4 @@
     (not (instance? Number value))
     (or (nil? value)
         (.equals "" value)
-        (identical? value missing)
         (and (string? value) (re-matches #"(?i)^n\/?a$" value)))))
