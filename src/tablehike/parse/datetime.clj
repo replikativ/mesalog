@@ -1,7 +1,6 @@
 (ns tablehike.parse.datetime
   (:require [clojure.string :as s]
-            [tablehike.parse.utils :as utils]
-            [tech.v3.dataset.io.column-parsers :refer [parse-failure]])
+            [tablehike.parse.utils :as utils])
   (:import [java.time Instant LocalDate LocalDateTime LocalTime OffsetDateTime ZonedDateTime ZoneId]
            [java.time.format DateTimeFormatter DateTimeFormatterBuilder]
            [java.util Date Locale]))
