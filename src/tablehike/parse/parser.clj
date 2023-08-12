@@ -13,11 +13,65 @@
             [clojure.string :as string])
   (:import [clojure.lang IFn IReduceInit PersistentVector]
            [java.time.format DateTimeFormatter]
-           [java.util Iterator List]
+           [java.util Iterator List UUID]
            [ham_fisted IMutList Casts]
            [org.roaringbitmap RoaringBitmap]
            [tablehike.read TakeReducer]
            [tech.v3.datatype ArrayHelpers ObjectBuffer]))
+
+
+(def missing :tablehike/missing)
+
+
+(def default-coercers
+  (into dt/datatype->general-parse-fn-map
+        {:boolean #(if (string? %)
+                     (let [^String data %]
+                       (cond
+                         (or (.equalsIgnoreCase "t" data)
+                             (.equalsIgnoreCase "y" data)
+                             (.equalsIgnoreCase "yes" data)
+                             (.equalsIgnoreCase "True" data)
+                             (.equalsIgnoreCase "positive" data))
+                         true
+                         (or (.equalsIgnoreCase "f" data)
+                             (.equalsIgnoreCase "n" data)
+                             (.equalsIgnoreCase "no" data)
+                             (.equalsIgnoreCase "false" data)
+                             (.equalsIgnoreCase "negative" data))
+                         false
+                         :else
+                         parse-failure))
+                     (boolean %))
+         :int64 (utils/make-safe-parse-fn #(if (string? %)
+                                             (Long/parseLong %)
+                                             (long %)))
+         :float32 (utils/make-safe-parse-fn #(if (string? %)
+                                               (let [fval (Float/parseFloat %)]
+                                                 (if (Float/isNaN fval)
+                                                   missing
+                                                   fval))
+                                               (float %)))
+         :float64 (utils/make-safe-parse-fn #(if (string? %)
+                                               (let [dval (Double/parseDouble %)]
+                                                 (if (Double/isNaN dval)
+                                                   missing
+                                                   dval))
+                                               (double %)))
+         :uuid (utils/make-safe-parse-fn #(if (string? %)
+                                            (UUID/fromString %)
+                                            (if (instance? UUID %)
+                                              %
+                                              parse-failure)))
+         :keyword #(if-let [retval (keyword %)]
+                     retval
+                     parse-failure)
+         :symbol #(if-let [retval (symbol %)]
+                    retval
+                    parse-failure)
+         :string #(if (string? %)
+                    %
+                    (str %))}))
 
 
 (deftype ObjectArrayList [^{:unsynchronized-mutable true
@@ -35,13 +89,6 @@
   (readObject [_this idx]
     (when (< idx (alength ^objects data))
       (aget ^objects data idx))))
-
-
-(def default-coercers
-  (let [coercers (-> (apply dissoc parsers/default-coercers [:bool :text])
-                     (assoc :string #(if (string? %) % (str %))))]
-    (into (apply dissoc coercers #{:duration :local-time :packed-duration :packed-local-time})
-          dt/datatype->general-parse-fn-map)))
 
 
 (definterface PParser
@@ -77,13 +124,13 @@
                            [parser-entry])
         formattable-dt-dtypes (disj dt/datetime-datatypes :instant)
         datetime-formatter-parse-fn (fn [dtype formatter]
-                                      (parse-utils/make-safe-parse-fn
+                                      (utils/make-safe-parse-fn
                                        (dt/datetime-formatter-parse-fn dtype formatter)))]
     (assert (keyword? dtype))
     [dtype
      (cond
        (instance? IFn parse-fn)
-       parse-fn
+       (utils/make-safe-parse-fn parse-fn)
        (and (formattable-dt-dtypes dtype)
             (string? parse-fn))
        (datetime-formatter-parse-fn dtype (DateTimeFormatter/ofPattern parse-fn))
@@ -107,7 +154,7 @@
       (csv-read/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
       (or (string? value)
-          (not (identical? (parse-utils/fast-dtype value) parser-dtype)))
+          (not (identical? (utils/fast-dtype value) parser-dtype)))
       (when (identical? parse-failure (parse-fn value))
         (do (.add failed-indexes (unchecked-int idx))
             (.add failed-values value)))))
@@ -165,7 +212,7 @@
             (do (set! parser-dtype first-dtype)
                 (set! parse-fn first-parse-fn))))
         (cond
-          (and (not (-> (parse-utils/fast-dtype value)
+          (and (not (-> (utils/fast-dtype value)
                         (identical? parser-dtype)))
                parse-fn)
           (when (identical? parse-failure
