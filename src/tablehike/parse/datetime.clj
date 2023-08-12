@@ -119,24 +119,29 @@ parse a wide variety of local date formats."
       Date/from))
 
 
+(defn- make-safe-datetime-parse-fn [parse-fn]
+  (utils/make-safe-parse-fn (comp datetime->date parse-fn)))
+
+
 (def ^{:doc "Map of datetime datatype to generalized parse fn."}
   datatype->general-parse-fn-map
-  (->> {:local-date parse-local-date
-        :local-date-time parse-local-date-time
-        :instant #(Instant/parse ^String %)
-        :offset-date-time #(OffsetDateTime/parse ^String %)
-        :zoned-date-time #(ZonedDateTime/parse ^String %)}
-       (into {} (map (fn [[k v]]
-                       [k (utils/make-safe-parse-fn (comp datetime->date v))])))))
+  (into {}
+        (map (fn [[k v]]
+               [k (make-safe-datetime-parse-fn v)]))
+        {:local-date parse-local-date
+         :local-date-time parse-local-date-time
+         :instant #(Instant/parse ^String %)
+         :offset-date-time #(OffsetDateTime/parse ^String %)
+         :zoned-date-time #(ZonedDateTime/parse ^String %)}))
 
 
 (defn datetime-formatter-parse-fn
   "Given a datatype and a formatter return a function that attempts to
   parse that specific datatype, then convert into a java.util.Date."
   [dtype formatter]
-  (let [formatter-parser (case dtype
-                           :local-date #(LocalDate/parse % formatter)
-                           :local-date-time #(LocalDateTime/parse % formatter)
-                           :zoned-date-time #(ZonedDateTime/parse % formatter)
-                           :offset-date-time #(OffsetDateTime/parse % formatter))]
-    (comp datetime->date formatter-parser)))
+  (make-safe-datetime-parse-fn
+   (case dtype
+     :local-date #(LocalDate/parse % formatter)
+     :local-date-time #(LocalDateTime/parse % formatter)
+     :zoned-date-time #(ZonedDateTime/parse % formatter)
+     :offset-date-time #(OffsetDateTime/parse % formatter))))
