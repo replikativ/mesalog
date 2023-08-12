@@ -122,10 +122,7 @@
   (let [[dtype parse-fn] (if (vector? parser-entry)
                            parser-entry
                            [parser-entry])
-        formattable-dt-dtypes (disj dt/datetime-datatypes :instant)
-        datetime-formatter-parse-fn (fn [dtype formatter]
-                                      (utils/make-safe-parse-fn
-                                       (dt/datetime-formatter-parse-fn dtype formatter)))]
+        formattable-dt-dtypes (disj dt/datetime-datatypes :instant)]
     (assert (keyword? dtype))
     [dtype
      (cond
@@ -133,10 +130,10 @@
        (utils/make-safe-parse-fn parse-fn)
        (and (formattable-dt-dtypes dtype)
             (string? parse-fn))
-       (datetime-formatter-parse-fn dtype (DateTimeFormatter/ofPattern parse-fn))
+       (dt/datetime-formatter-parse-fn dtype (DateTimeFormatter/ofPattern parse-fn))
        (and (formattable-dt-dtypes dtype)
             (instance? DateTimeFormatter parse-fn))
-       (datetime-formatter-parse-fn dtype parse-fn)
+       (dt/datetime-formatter-parse-fn dtype parse-fn)
        :else
        (if-let [ret-fn (get default-coercers dtype)]
          ret-fn
