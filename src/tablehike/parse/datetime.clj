@@ -48,7 +48,8 @@ parse a wide variety of local date formats."
 
 (def ^{:doc "Parser patterns to parse a wide variety of time strings"}
   time-parser-patterns
-  ["HH:mm:ss:SSS"
+  ["HH:mm:ss:SSSSSS"
+   "HH:mm:ss:SSS"
    "hh:mm:ss a"
    "HH:mm:ss"
    "h:mm:ss a"
