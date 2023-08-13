@@ -137,8 +137,9 @@
        :else
        (if-let [ret-fn (get default-coercers dtype)]
          ret-fn
-         (throw (IllegalArgumentException.
-                 (format "Unrecognized data and parse function type: %s and %s" dtype parse-fn)))))]))
+         (-> (format "Unrecognized data and parse function type: %s and %s" dtype parse-fn)
+             IllegalArgumentException.
+             throw)))]))
 
 
 (deftype FixedTypeParser [col-idx col-name parser-dtype parse-fn
