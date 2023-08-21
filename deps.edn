@@ -1,6 +1,7 @@
 {:paths ["src" "resources" "target/classes"]
 
- :deps {com.cnuernber/charred {:mvn/version "1.028"}
+ :deps {; version 1.032 seems to cause a bug with tablecloth.api/write!
+        com.cnuernber/charred {:mvn/version "1.028"}
         cnuernber/dtype-next {:mvn/version "10.000-beta-50"}
         com.cnuernber/ham-fisted {:mvn/version "1.000-beta-98"}
         org.clojure/clojure {:mvn/version "1.11.1"}
