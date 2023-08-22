@@ -306,7 +306,7 @@
   (let [; mapping from idents for existing attributes in the DB, but colnames for CSV attrs
         ; since this information won't be needed at the ident level for CSV contents anyway
         ident->dtype (merge (into {}
-                                  (map (fn [ident schema]
+                                  (map (fn [[ident schema]]
                                          [ident (get schema :db/valueType)]))
                                   schema)
                             (map-col-names->schema-dtypes parsers))
