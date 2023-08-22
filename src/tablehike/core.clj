@@ -126,42 +126,36 @@
   ```
 
   Please see README for more detail."
-  ([csv-file]
-   (load-csv csv-file {} {} {}))
-  ([csv-file cfg]
-   (load-csv csv-file cfg {} {}))
-  ([csv-file cfg schema-spec]
-   (load-csv csv-file cfg schema-spec {}))
-  ([csv-file cfg schema-spec options]
-   (let [parsers (parser/csv->parsers csv-file options)
-         cfg (or cfg {})
-         cfg (when-not (d/database-exists? cfg)
-               (d/create-database cfg))
-         conn (d/connect cfg)
+  ([filename conn]
+   (load-csv filename conn {} {}))
+  ([filename conn schema-spec]
+   (load-csv filename conn schema-spec {}))
+  ([filename conn schema-spec options]
+   (let [parsers (parser/csv->parsers filename options)
          schema (schema/build-schema parsers
                                      schema-spec
                                      (d/schema @conn)
                                      (d/reverse-schema @conn)
-                                     (csv-read/csv->header-skipped-row-iter csv-file options)
+                                     (csv-read/csv->header-skipped-row-iter filename options)
                                      options)
          csv-row->entity-map (-> (map :db/ident schema)
                                  (csv-row->entity-map-parser parsers schema-spec options))
-         row-iter (csv-read/csv->header-skipped-row-iter csv-file options)
+         row-iter (csv-read/csv->header-skipped-row-iter filename options)
          num-rows (long (get options :batch-size
                              (get options :n-records
                                   (get options :num-rows 128000))))]
                                         ; Could check for overlap with any existing schema, but I don't read minds
      (d/transact conn schema)
      (loop [continue? (.hasNext row-iter)]
-       (when continue?
+       (if continue?
          (do (->> {:tx-data (-> (fn [v row]
                                   (conj! v (csv-row->entity-map row)))
                                 (reduce (transient [])
                                         (TakeReducer. row-iter num-rows))
                                 persistent!)}
                   (d/transact conn))
-             (recur (.hasNext row-iter)))))
-     cfg)))
+             (recur (.hasNext row-iter)))
+         @conn)))))
 
 
 (comment
