@@ -1,13 +1,10 @@
 (ns tablehike.core
-  (:require [clojure.string :as str]
-            [datahike.api :as d]
+  (:require [datahike.api :as d]
             [tablehike.parse.parser :as parser]
-            [tablehike.parse.datetime :as dt]
             [tablehike.parse.utils :as parse-utils]
             [tablehike.read :as csv-read]
             [tablehike.schema :as schema])
-  (:import [clojure.lang Indexed IPersistentVector IReduceInit]
-           [java.util Iterator List]
+  (:import [clojure.lang Indexed IPersistentVector]
            [tablehike.read TakeReducer]))
 
 
