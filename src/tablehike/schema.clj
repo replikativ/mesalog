@@ -10,7 +10,7 @@
            [tablehike.read TakeReducer]))
 
 
-(defn- parser->schema-dtype [dtype]
+(defn parser->schema-dtype [dtype]
   (cond
     (identical? :bool dtype) :db.type/boolean
     (identical? :float32 dtype) :db.type/float
@@ -247,7 +247,7 @@
                     ; if the current row represents a previously encountered entity with a
                     ; different value for this column, then either of these holds for the column:
                     ; 1. It's cardinality-many.
-                    ; 2. It's a tuple
+                    ; 2. It's part of a tuple
                     (when (not (-> (aget a-evs entity-row-idx)
                                    (.equals ^String v)))
                       (do (when (and maybe-tuples
