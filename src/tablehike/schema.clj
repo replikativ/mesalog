@@ -148,7 +148,7 @@
             (fn [a-schema schema-a]
               (let [schema-a-ns (namespace schema-a)
                     [k v] (if (->> (name schema-a)
-                                   (contains? #{"index" "noHistory"})
+                                   (contains? #{"index" "isComponent" "noHistory"})
                                    (and (.equals "db" schema-a-ns)))
                             ; doesn't apply to :db/ident, :db/id, :db/doc
                             [schema-a true]
