@@ -45,6 +45,33 @@
             (= {})))))
 
 
+(deftest vector-schema-spec
+  (testing "Schema specification as a vector (i.e. the format expected by Datahike)"
+    (let [schema-vec [{:db/ident        :shape/id
+                       :db/valueType    :db.type/long
+                       :db/cardinality  :db.cardinality/one
+                       :db/unique       :db.unique/identity}
+                      {:db/ident        :shape/pt-lat
+                       :db/valueType    :db.type/float
+                       :db/cardinality  :db.cardinality/many}
+                      {:db/ident        :shape/pt-lon
+                       :db/valueType    :db.type/float
+                       :db/cardinality  :db.cardinality/many}
+                      {:db/ident        :shape/pt-sequence
+                       :db/cardinality  :db.cardinality/many}]
+          schema (into {}
+                       (map (fn [s]
+                              [(:db/ident s) s]))
+                       schema-vec)
+          _ (load-csv shapes-file test-conn schema-vec)
+          db-schema (d/schema @test-conn)]
+      (is (every? (fn [[a s]]
+                    (= (dissoc s :db/id) (a schema)))
+                  (dissoc db-schema :shape/pt-sequence)))
+      (is (= (:db/valueType (:shape/pt-sequence db-schema))
+             :db.type/long)))))
+
+
 (defn- filter-ds-col-names [pred ds-cols]
   (map #(:name (meta %))
        (filter pred ds-cols)))
