@@ -129,19 +129,22 @@
    (load-csv filename conn schema-spec {}))
   ([filename conn schema-spec options]
    (let [parsers (parser/csv->parsers filename options)
-         schema (schema/build-schema parsers
-                                     schema-spec
-                                     (d/schema @conn)
-                                     (d/reverse-schema @conn)
-                                     (csv-read/csv->header-skipped-row-iter filename options)
-                                     options)
-         csv-row->entity-map (-> (map :db/ident schema)
-                                 (csv-row->entity-map-parser parsers schema-spec options))
+         schema (schema/build-schema
+                 parsers
+                 schema-spec
+                 (d/schema @conn)
+                 (d/reverse-schema @conn)
+                 (csv-read/csv->header-skipped-row-iter filename options)
+                 options)
+         csv-row->entity-map (csv-row->entity-map-parser (map :db/ident schema)
+                                                         parsers
+                                                         schema-spec
+                                                         options)
          row-iter (csv-read/csv->header-skipped-row-iter filename options)
          num-rows (long (get options :batch-size
                              (get options :n-records
                                   (get options :num-rows 128000))))]
-                                        ; Could check for overlap with any existing schema, but I don't read minds
+     ; TODO: fix "Could check for overlap with any existing schema, but I don't read minds"
      (d/transact conn schema)
      (loop [continue? (.hasNext row-iter)]
        (if continue?
