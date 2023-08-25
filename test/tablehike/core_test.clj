@@ -35,6 +35,8 @@
 (def ^:private shapes-file (io/file data-folder "shapes.csv"))
 
 
+; Questionable or nonsensical schema designs sometimes used for testing purposes only
+
 (deftest empty-input
   (testing "empty CSV file"
     (is (-> (io/file data-folder "empty.csv")
@@ -240,7 +242,6 @@
             :db/index))))
 
 
-; Doesn't make sense except for testing purposes
 (deftest no-history-attrs
   (testing "Attributes specified as noHistory have that set to true in schema"
     (load-csv shapes-file test-conn {:db/noHistory #{:shape/pt-lat :shape/pt-lon}})
@@ -274,8 +275,6 @@
         (is (= (:db/valueType coordinates-schema) :db.type/tuple))
         (is (= (:db/tupleAttrs coordinates-schema) latlon))))))
 
-
-; Questionable or nonsensical schema design for testing purposes only
 
 (deftest default-cardinality
   (testing "Cardinality when cardinality and unique attributes are not specified"
