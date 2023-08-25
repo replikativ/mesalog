@@ -100,9 +100,9 @@
     ; Give user-specified schema precedence in either case: the customer is always right! ;-)
     ; (That also means taking the blame/fall if they're wrong: no free lunch!)
     (if (vector? schema-spec)
-      (into col-name->dtype
+      (into {}
             (map (fn [{a-ident :db/ident :as a-schema}]
-                   [a-ident (-> (a-ident col-name->dtype)
+                   [a-ident (-> {:db/valueType (a-ident col-name->dtype)}
                                 (merge a-schema))]))
             schema-spec)
       (let [ref-idents (if (map? refs)
