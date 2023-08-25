@@ -90,7 +90,7 @@
                                {tuples :db.type/tuple
                                 composite-tuples :db.type/compositeTuple
                                 refs :db.type/ref
-                                :as schema-arg}]
+                                :as schema-spec}]
   (let [col-name->dtype (map-col-names->schema-dtypes parsers)
         col-name->index (parse-utils/map-col-names->indices parsers)
         col-name-dtype->tx-schema (fn [col dtype]
@@ -99,12 +99,12 @@
                                          (init-col-attr-schema col dtype)))]
     ; Give user-specified schema precedence in either case: the customer is always right! ;-)
     ; (That also means taking the blame/fall if they're wrong: no free lunch!)
-    (if (vector? schema-arg)
+    (if (vector? schema-spec)
       (into col-name->dtype
             (map (fn [{a-ident :db/ident :as a-schema}]
                    [a-ident (-> (a-ident col-name->dtype)
                                 (merge a-schema))]))
-            schema-arg)
+            schema-spec)
       (let [ref-idents (if (map? refs)
                          (keys refs)
                          refs)
@@ -158,7 +158,7 @@
                               [(keyword (string/replace schema-a-ns \. \/))
                                schema-a]))]
                 (assoc a-schema k v)))]
-        (->> (dissoc schema-arg :db.type/tuple :db.type/compositeTuple :db.type/ref)
+        (->> (dissoc schema-spec :db.type/tuple :db.type/compositeTuple :db.type/ref)
              (reduce-kv (fn [m schema-a col-attrs]
                           (reduce (fn [m a]
                                     (if (contains? m a)
@@ -298,7 +298,7 @@
 (defn schema-builder [parsers
                       {tuples :db.type/tuple
                        composite-tuples :db.type/compositeTuple
-                       :as schema-arg}
+                       :as schema-spec}
                       schema
                       {rschema-unique-id :db.unique/id
                        rschema-unique-val :db.unique/value}
@@ -310,7 +310,7 @@
                                          [ident (get schema :db/valueType)]))
                                   schema)
                             (map-col-names->schema-dtypes parsers))
-        ident->tx-schema (map-idents->tx-schemas parsers schema-arg)
+        ident->tx-schema (map-idents->tx-schemas parsers schema-spec)
         csv-unique-attrs (into #{}
                                (comp (map (fn [[ident {unique :db/unique}]]
                                             (when (or (identical? :db.unique/identity unique)
@@ -373,8 +373,8 @@
       (init-schema-builder nil nil nil nil))))
 
 
-(defn build-schema [parsers schema-arg schema rschema row-iter options]
-  (let [builder (schema-builder parsers schema-arg schema rschema options)]
+(defn build-schema [parsers schema-spec schema rschema row-iter options]
+  (let [builder (schema-builder parsers schema-spec schema rschema options)]
     (reduce (->> (update-schema! builder row-idx row)
                  (hamf-rf/indexed-accum acc row-idx row))
             nil
