@@ -33,7 +33,6 @@
 (def ^:private agencies-file (io/file data-folder "agencies.csv"))
 (def ^:private routes-file (io/file data-folder "routes.csv"))
 (def ^:private shapes-file (io/file data-folder "shapes.csv"))
-(def ^:private trips-file (io/file data-folder "trips.csv"))
 
 
 (deftest empty-input
@@ -204,7 +203,8 @@
 
 (deftest references-to-existing-entities
   (testing "Attributes referencing existing entities are correctly reflected in schema and loaded"
-    (let [trips (tc-dataset trips-file)
+    (let [trips-file (io/file data-folder "trips.csv")
+          trips (tc-dataset trips-file)
           trip->route-id (into {}
                                (map (fn [t]
                                       [(:trip/id t) (:trip/route-id t)]))
