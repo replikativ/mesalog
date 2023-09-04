@@ -159,244 +159,44 @@
 
 
 (comment
-  (require '[clojure.data.csv :as csv]
-           '[clojure.java.io :as io]
-           '[charred.api :as charred])
-           ;'[tablecloth.api :as tc])
+  (require '[clojure.java.io :as io]
+           '[clojure.string :as string]
+           '[charred.api :as charred]
+           '[clojure.java.shell :as sh]
+           '[datahike.api :as d]
+           '[tablehike.core :as tbh])
 
-  ; TODO return nil type (or something else appropriate) if all missing!
+
   ; TODO test with regular (vector of maps) schema spec
-  (def cfg (load-csv "resources/agencies.csv"))
+
+  (def cfg (d/create-database {}))
   (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
   (d/delete-database cfg)
 
-  (def cfg (load-csv "resources/agencies.csv" {} {:db.unique/identity #{:agency/id}
-                                                  :db.unique/value #{:agency/name :agency/url}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/levels.csv"))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/route_trips.csv"))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  ; test missing->nil!
-  (def cfg (load-csv "resources/routes.csv"))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/shapes.csv"))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.type/compositeTuple {:shape/key [:shape/id :shape/pt-sequence]}
-             :db.unique/identity #{:shape/key}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.type/compositeTuple {:shape/coordinates [:shape/pt-lat :shape/pt-lon]}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.type/compositeTuple {:shape/key [:shape/id :shape/pt-sequence]
-                                      :shape/coordinates [:shape/pt-lat :shape/pt-lon]}
-             :db.unique/identity #{:shape/key}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.unique/identity #{:shape/id}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.type/tuple {:shape/key [:shape/id :shape/pt-sequence]
-                             :shape/coordinates [:shape/pt-lat :shape/pt-lon]}
-             :db.unique/identity #{:shape/key}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.type/tuple {:shape/key [:shape/id :shape/pt-sequence]}
-             :db.unique/identity #{:shape/key}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.type/tuple {:shape/coordinates [:shape/pt-lat :shape/pt-lon]}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  ; TODO file Datahike bug report for cardinality-many tuples
-  ; throws Execution error (UnsupportedOperationException): "count not supported on this type: Double"
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.unique/identity #{:shape/id}
-             :db.type/tuple {:shape/coordinates [:shape/pt-lat :shape/pt-lon]}}))
-  (def conn (d/connect cfg))
-  (d/datoms @conn :eavt)
-  (d/schema @conn)
-  (d/transact conn {:tx-data [{:shape/id 185
-                               :shape/coordinates [52.296719 13.631534]
-                               :shape/pt-sequence 0}]})
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  ; TODO file Datahike bug report for cardinality-many tuples
-  ; throws Execution error (UnsupportedOperationException): "count not supported on this type: Long"
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.unique/identity #{:shape/id}
-             :db.type/tuple {:shape/key [:shape/id :shape/pt-sequence]}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  ; Nonsensical cases solely for test purposes
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.type/tuple {:shape/first [:shape/id :shape/pt-lat]
-                             :shape/second [:shape/pt-lon :shape/pt-sequence]}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  cfg
-  (d/delete-database cfg)
-
-  ; TODO file Datahike bug report for cardinality-many tuples...
-  ; ... "count not supported on this type: Float"
-  (def cfg (load-csv "resources/shapes.csv"
-            {}
-            {:db.unique/identity #{:shape/id}
-             :db.type/tuple {:shape/etc [:shape/pt-lat :shape/pt-lon :shape/pt-sequence]}}))
-  (def conn (d/connect cfg))
-  cfg
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/stops.csv"))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  (d/schema @conn)
-  (d/delete-database cfg)
-
-  ; TODO tuple type inconsistency
-  (def cfg (load-csv "resources/stops.csv"
-            {}
-            {:db.unique/identity #{:stop/id}
-             :db.cardinality/one #{:stop/name   ; just a few: the complete set is too long
-                                   :stop/lat
-                                   :stop/lon
-                                   :stop/wheelchair-boarding}
-             :db.type/string #{:stop/id :stop/name}  ; ditto, out of laziness
-             :db.type/long #{:stop/location-type}   ; "
-             :db.type/double #{:stop/lat :stop/lon}
-             :db.type/tuple {:stop/coordinates [:stop/lat :stop/lon]}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  (d/schema @conn)
-  (d/delete-database cfg)
-
-  ; What if we fake it? Answer: user-specified schema takes precedence
-  (def cfg (load-csv "resources/stops.csv"
-            {}
-            {:db.unique/identity #{:stop/id}
-             :db.type/long #{:stop/id}}))
-  ; explodes
-
-  (def cfg (load-csv "resources/stops.csv"
-            {}
-            {:db.unique/identity #{:stop/id}
-             :db.type/ref #{:stop/parent-station}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  (d/schema @conn)
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/stops.csv"
-            {}
-            {:db.unique/identity #{:stop/id}
-             :db.type/ref #{:stop/parent-station}
-             :db.type/tuple {:stop/coordinates [:stop/lat :stop/lon]}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  (d/schema @conn)
-  (d/delete-database cfg)
-
-  (def cfg (load-csv "resources/stops.csv"
-            {}
-            {:db.unique/identity #{:stop/id}
-             :db.type/ref #{:stop/parent-station}
-             :db.type/compositeTuple {:stop/coordinates [:stop/lat :stop/lon]}}))
-  (def conn (d/connect cfg))
-  (count (d/datoms @conn :eavt))
-  (d/schema @conn)
-  (d/delete-database cfg)
-
-  ; TODO ugh please not whack-a-mole
   (def pokemon-file "test/data/pokemon.csv")
-  (def cfg (load-csv pokemon-file))
-  cfg
-  (def conn (d/connect cfg))
+  (load-csv pokemon-file conn)
   (count (d/datoms @conn :eavt))
   (:abilities (d/entity @conn 50))
   (count (d/schema @conn))
+  (->> (d/q '[:find ?n ?a
+              :where [?e :japanese_name ?n]
+              [?e :abilities ?a]]
+            @conn)
+       (reduce (fn [m [n a]]
+                 (if (some? (get m n))
+                   (update m n inc)
+                   (assoc m n 1)))
+               {}))
   (d/delete-database cfg)
 
-  (def grilled (with-open [reader (io/reader pokemon-file)]
-                 (doall
-                  (charred/read-csv reader))))
-  (count grilled)
-  (map #(nth % 23) grilled)
-  (subvec (nth grilled 1) 32)
-
   (def dial-311-file "test/data/311_service_requests_2010-present_sample.csv")
-  (def wtf (load-csv dial-311-file
-                     {}
-                     {}
-                     {:vector-open \(
-                      :vector-close \)
-                      :schema-sample-size 128000
-                      :parser-sample-size 128000}))
+  (def db (load-csv dial-311-file
+                    conn
+                    {}
+                    {:vector-open \(
+                     :vector-close \)
+                     :schema-sample-size 1280000
+                     :parser-sample-size 1280000}))
                       ;:parser-fn {40 [:vector
                       ;                (fn [v]
                       ;                  (let [len (.length ^String v)
@@ -404,6 +204,16 @@
                       ;                    (mapv (get parser/default-coercers :float32)
                       ;                          (-> (subs v 1 (dec len))
                       ;                              (str/split re)))))]}}
-  wtf
-  (count wtf)
+
+
+(def cfg (d/create-database {:backend :file
+                                   :path "test/databases/vbb-db"}))
+(def conn (d/connect cfg))
+(def data-dir "/Users/yiffle/programming/code/vbb-gtfs/data")
+(def latest-db (tbh/load-csv (io/file data-dir "agencies.csv") conn))
+(def latest-db (tbh/load-csv (io/file data-dir "routes.csv") conn))
+(def latest-db (tbh/load-csv (io/file data-dir "trips.csv")
+                             conn
+                             {}
+                             {:parser-sample-size 242608}))
   )
