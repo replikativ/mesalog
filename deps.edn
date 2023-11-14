@@ -6,7 +6,7 @@
         com.cnuernber/ham-fisted {:mvn/version "1.000-beta-98"}
         org.clojure/clojure {:mvn/version "1.11.1"}
         org.roaringbitmap/RoaringBitmap {:mvn/version "0.9.0"}
-        io.replikativ/datahike {:mvn/version "0.6.1542"}
+        io.replikativ/datahike {:mvn/version "0.6.1554"}
         techascent/tech.ml.dataset {:mvn/version "7.000-beta-51"}}
 
  :aliases {:dev {:extra-deps {criterium/criterium {:mvn/version "0.4.6"}
