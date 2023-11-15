@@ -11,6 +11,8 @@
   (:import [tablehike.read TakeReducer]))
 
 
+; TODO find sane location in repo for demo data
+
 (def cfg (d/create-database {}))
 (def conn (d/connect cfg))
 
