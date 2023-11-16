@@ -69,60 +69,74 @@
 
 
 (defn load-csv
-    "Reads, parses, and loads data from CSV file named `csv-file` into the Datahike database having
-  (optionally specified) config `cfg`, with likewise optional schema-related options for attributes.
-  Each column represents an attribute, with keywordized column name as attribute ident, or otherwise,
-  an element in a heterogeneous or homogeneous tuple.
+    "Reads, parses, and loads data from CSV file named `filename` into a Datahike database via
+  the connection `conn`, with optional specifications in `schema-spec` and `options`.
 
-  THE FOLLOWING IS COMPLETELY OUTDATED; UPDATE TBD:
+  *Please note that the functionality (API and implementation) documented here will likely undergo
+  major changes in the near future.*
 
-  If `cfg` is omitted, and the last argument:
-  1. is also absent, or has empty `:schema`, `:ref-map`, and `:composite-tuple-map`, `cfg` is inferred to be `{:schema-flexibility :read}`.
-  2. has a non-empty value for one or more of `:schema`, `:ref-map`, and `:composite-tuple-map`, `cfg` is inferred to be `{}`, i.e. the default value.
+  Each column represents an attribute, with keywordized column name as attribute ident, or
+  otherwise, an element in a tuple. Type and cardinality are automatically inferred, though they
+  sometimes require specification; in particular, cardinality many is well-defined and can only
+  be inferred in the presence of a separate attribute marked as unique (`:db.unique/identity` or
+  `:db.unique/value`).
 
-  `:schema` in the last argument can be specified in two ways:
-  1. Full specification via the usual Datahike transaction data format, i.e. a vector of maps,
-  each corresponding to an attribute.
-  2. Partial specification via an abridged format like the map returned by `datahike.api/reverse-schema`,
-  albeit with slightly different keys, each having a set of attribute idents as the corresponding value.
-  Available options:
+  `schema-spec` can be used to specify schema fully or partially for attributes introduced by
+  `filename`. It may be:
 
-  | Key                 | Description   |
-  |---------------------|---------------|
-  | `:unique-id`        | `:db/unique` value `:db.unique/identity`
-  | `:unique-val`       | `:db/unique` value `:db.unique/value`
-  | `:index`            | `:db/index` value `true`
-  | `:cardinality-many` | `:db/cardinality` value `:db.cardinality/many`
+  1. A map, for partial specification: using schema attributes or schema attribute values as keys,
+  each with a collection of attribute idents or keywordised column names as its corresponding value,
+  in the following forms:
 
-  Ref- and tuple-valued attributes, i.e. those with `:db/valueType` `:db.type/ref` or `:db.type/tuple`, are
-  however specified separately, via `:ref-map`, `:tuple-map`, or `:composite-tuple-map`, each a map as follows:
+  *Key:* Any of `:db/isComponent`, `:db/noHistory`, and `:db/index`
+  *Value:* Set of attribute idents
+  *Description:* Denotes a schema attribute value of `true`
+  *Example:* `{:db/index #{:name}}` denotes a `:db/index` value of `true` for attribute `:name`
 
-  | Key                     | Description   |
-  |-------------------------|---------------|
-  | `:ref-map`              | `:db.type/ref` attribute idents to referenced attribute idents
-  | `:composite-tuple-map`  | Composite `:db.type/tuple` attribute idents to constituent attribute idents
-  | `:tuple-map`            | Other (homogeneous, heterogeneous) `:db.type/tuple` attribute idents to constituent attribute idents
+  *Key:* Any element of the sets `:db.type/value`, `:db.type/cardinality`, and `:db.type/unique`
+  from namespace `datahike.schema`, except `:db.type.install/attribute`
+  *Value:* Set of attribute idents
+  *Description:* The key denotes the corresponding schema attribute value for the attributes named
+  in the value. `:db.type/tuple` and `:db.type/ref` attributes have two possible forms of specification.
+  In this form, each attribute must correspond to a self-contained column, i.e. consist of sequences
+  for tuples, and lookup refs or entity IDs for refs. The other form is described below.
+  *Examples:*
+  `{:db.type/keyword #{:kw}}` denotes `:db/valueType` `:db.type/keyword` for attribute `:kw`.
+  `{:db.cardinality/many #{:orders}}` denotes `:db/cardinality` `:db.cardinality/many` for `:orders`.
+  `{:db.unique/identity #{:email}}` denotes `:db/unique` `:db.unique/identity` for `:email`.
 
-  Unspecified schema attribute values are defaults or inferred from the data given.
+  *Key:* `:db.type/ref`
+  *Value:* Map of ref-type attribute idents to referenced attribute idents
+  *Description:* Each key-value pair maps a ref-type attribute to an attribute which uniquely
+  identifies referenced entities
+  *Example:* `{:db.type/ref {:parent-station :station-id}}` denotes that the ref-type attribute
+  `:parent-station` references entities with the unique identifier attribute `:station-id`
 
-  Example invocations:
-  ``` clojure
-  (load-csv csv-file)
-  (load-csv csv-file dh-cfg)
-  (load-csv csv-file dh-cfg {:schema [{:db/ident :name
-                                       ...}
-                                      ...]
-                             :ref-map {...}
-                             :tuple-map {...}
-                             :composite-tuple-map {...}})
-  (load-csv csv-file dh-cfg {:schema {:unique-id #{...}
-                                       ...}
-                             :ref-map {...}
-                             :tuple-map {...}
-                             :composite-tuple-map {...}})
-  ```
+  *Key:* `:db.type/tuple`
+  *Value:* Map of tuple attribute ident to sequence of keywordized column names
+  *Description:* Each key-value pair denotes a tuple attribute and the columns representing its elements
+  *Example:* `{:db.type/tuple {:abc [:a :b :c]}}` denotes that the tuple attribute `:abc` consists of
+  elements with values represented in columns `:a`, `:b`, and `:c`
 
-  Please see README for more detail."
+  *Key:* `:db.type/compositeTuple` (a keyword not used in Datahike, but that serves here as a
+  shorthand to distinguish composite and ordinary tuples)
+  *Value:* Map of composite tuple attribute ident to constituent attribute idents (keywordized
+  column names)
+  *Description:* Each key-value pair denotes a composite tuple attribute and its constituent
+  attributes (each corresponding to a column)
+  *Example:* `{:db.type/compositeTuple {:abc [:a :b :c]}}`: the composite tuple attribute `:abc`
+  consists of attributes (with corresponding columns) `:a`, `:b`, and `:c`
+
+  2. A vector of maps, of the form used for schema specification in Datahike. Still not well supported:
+  besides `:db/ident`, `:db/cardinality` (which is required) for each attribute must be specified, though
+  type is inferred if omitted.
+
+  Lastly, `options` supports the following keys:
+  - `:batch-size`: the number of rows to read and transact per batch (default 128,000)
+  - `:num-rows`: the number of rows in the CSV file
+  - `:parser-fn`: a map specifying custom parsers, with key-value pairs of keywordized column name
+  or index to `[dtype parser-fn]` tuple, with `dtype` being the appropriate key from in
+  `tablehike.parse.parser/default-coercer`"
   ([filename conn]
    (load-csv filename conn {} {}))
   ([filename conn schema-spec]
