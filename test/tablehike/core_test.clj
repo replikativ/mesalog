@@ -29,7 +29,7 @@
   (tc/dataset file {:key-fn keyword}))
 
 
-(def ^:private data-folder "test/data")
+(def ^:private data-folder "data")
 (def ^:private agencies-file (io/file data-folder "agencies.csv"))
 (def ^:private routes-file (io/file data-folder "routes.csv"))
 (def ^:private shapes-file (io/file data-folder "shapes.csv"))
