@@ -122,7 +122,7 @@
 (deftest boolean-value-types
   (testing (str "columns with values meeting and not meeting boolean parsing criteria "
                 "are correctly reflected in schema")
-    (load-csv (io/file data-folder "datatype-parser.csv") test-conn)
+    (load-csv (io/file data-folder "boolean-or-not.csv") test-conn)
     (let [schema (d/schema @test-conn)]
       (doseq [col [:char :word]]
         (is (->> (:db/valueType (col schema))
