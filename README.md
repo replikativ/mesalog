@@ -1,5 +1,7 @@
 # tablehike
 
+OUTDATED: Update pending.
+
 Loads CSV data into [Datahike](https://datahike.io) (see also [GitHub](https://github.com/replikativ/datahike)) with a single function call.
 
 ## Quickstart
