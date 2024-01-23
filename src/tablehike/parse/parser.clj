@@ -1,20 +1,15 @@
 (ns tablehike.parse.parser
-  (:require [datahike.api :as d]
-            [clojure.java.io :as io]
+  (:require [clojure.set :as clj-set]
             [clojure.string :as string]
-            [charred.api :as charred]
-            [charred.coerce :as coerce]
             [tablehike.parse.datetime :as dt]
             [tablehike.parse.utils :refer [parse-failure] :as utils]
             [tablehike.read :as csv-read]
             [tech.v3.datatype :as dtype]
             [tech.v3.datatype.bitmap :as bitmap]
-            [ham-fisted.reduce :as hamf-rf]
-            [clojure.string :as string])
-  (:import [clojure.lang IFn IReduceInit PersistentVector]
-           [java.time.format DateTimeFormatter]
+            [ham-fisted.reduce :as hamf-rf])
+  (:import [clojure.lang IFn PersistentVector]
            [java.util Iterator List UUID]
-           [ham_fisted IMutList Casts]
+           [ham_fisted IMutList]
            [org.roaringbitmap RoaringBitmap]
            [tablehike.read TakeReducer]
            [tech.v3.datatype ArrayHelpers ObjectBuffer]))

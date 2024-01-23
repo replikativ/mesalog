@@ -1,6 +1,6 @@
 (ns tablehike.parse.utils
-  (:require [tech.v3.datatype :as dtype])
-  (:import [ham_fisted Casts]))
+  (:require [charred.api :as charred]
+            [tech.v3.datatype :as dtype]))
 
 
 (def parse-failure :tablehike/parse-failure)
