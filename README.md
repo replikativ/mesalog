@@ -1,6 +1,6 @@
 # tablehike
 
-OUTDATED: Update pending.
+OUTDATED: Update pending. Meanwhile, please see docstrings and tests for detailed information.
 
 Loads CSV data into [Datahike](https://datahike.io) (see also [GitHub](https://github.com/replikativ/datahike)) with a single function call.
 
