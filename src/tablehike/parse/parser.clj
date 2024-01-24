@@ -19,54 +19,62 @@
 
 
 (def default-coercers
-  (into dt/datatype->general-parse-fn-map
-        {:boolean #(if (string? %)
-                     (let [^String data %]
-                       (cond
-                         (or (.equalsIgnoreCase "t" data)
-                             (.equalsIgnoreCase "y" data)
-                             (.equalsIgnoreCase "yes" data)
-                             (.equalsIgnoreCase "True" data)
-                             (.equalsIgnoreCase "positive" data))
-                         true
-                         (or (.equalsIgnoreCase "f" data)
-                             (.equalsIgnoreCase "n" data)
-                             (.equalsIgnoreCase "no" data)
-                             (.equalsIgnoreCase "false" data)
-                             (.equalsIgnoreCase "negative" data))
-                         false
-                         :else
-                         parse-failure))
-                     (boolean %))
-         :int64 (utils/make-safe-parse-fn #(if (string? %)
-                                             (Long/parseLong %)
-                                             (long %)))
-         :float32 (utils/make-safe-parse-fn #(if (string? %)
-                                               (let [fval (Float/parseFloat %)]
-                                                 (if (Float/isNaN fval)
-                                                   missing
-                                                   fval))
-                                               (float %)))
-         :float64 (utils/make-safe-parse-fn #(if (string? %)
-                                               (let [dval (Double/parseDouble %)]
-                                                 (if (Double/isNaN dval)
-                                                   missing
-                                                   dval))
-                                               (double %)))
-         :uuid (utils/make-safe-parse-fn #(if (string? %)
-                                            (UUID/fromString %)
-                                            (if (instance? UUID %)
-                                              %
-                                              parse-failure)))
-         :keyword #(if-let [retval (keyword %)]
-                     retval
-                     parse-failure)
-         :symbol #(if-let [retval (symbol %)]
-                    retval
-                    parse-failure)
-         :string #(if (string? %)
-                    %
-                    (str %))}))
+  (let [double-parser (utils/make-safe-parse-fn #(if (string? %)
+                                                   (let [dval (Double/parseDouble %)]
+                                                     (if (Double/isNaN dval)
+                                                       missing
+                                                       dval))
+                                                   (double %)))]
+    (into dt/datatype->general-parse-fn-map
+          #:db.type{:instant (-> (dt/datetime->date-parse-fn dt/instant-parse-fn)
+                                 utils/make-safe-parse-fn)
+                    :boolean #(if (string? %)
+                                (let [^String data %]
+                                  (cond
+                                    (or (.equalsIgnoreCase "t" data)
+                                        (.equalsIgnoreCase "y" data)
+                                        (.equalsIgnoreCase "yes" data)
+                                        (.equalsIgnoreCase "True" data)
+                                        (.equalsIgnoreCase "positive" data))
+                                    true
+                                    (or (.equalsIgnoreCase "f" data)
+                                        (.equalsIgnoreCase "n" data)
+                                        (.equalsIgnoreCase "no" data)
+                                        (.equalsIgnoreCase "false" data)
+                                        (.equalsIgnoreCase "negative" data))
+                                    false
+                                    :else
+                                    parse-failure))
+                                (boolean %))
+                    :bigint (utils/make-safe-parse-fn #(if (string? %)
+                                                         (Integer/parseInt %)
+                                                         (int %)))
+                    :long (utils/make-safe-parse-fn #(if (string? %)
+                                                       (Long/parseLong %)
+                                                       (long %)))
+                    :float (utils/make-safe-parse-fn
+                            #(if (string? %)
+                               (let [fval (Float/parseFloat %)]
+                                 (if (Float/isNaN fval)
+                                   missing
+                                   fval))
+                               (float %)))
+                    :double double-parser
+                    :number double-parser
+                    :uuid (utils/make-safe-parse-fn #(if (string? %)
+                                                       (UUID/fromString %)
+                                                       (if (instance? UUID %)
+                                                         %
+                                                         parse-failure)))
+                    :keyword #(if-let [retval (keyword %)]
+                                retval
+                                parse-failure)
+                    :symbol #(if-let [retval (symbol %)]
+                               retval
+                               parse-failure)
+                    :string #(if (string? %)
+                               %
+                               (str %))})))
 
 
 (deftype ObjectArrayList [^{:unsynchronized-mutable true
@@ -91,13 +99,30 @@
   (dataIntoMap []))
 
 
-(defn parse-value!
-  [^PParser p ^long idx value]
+(defn parse-value! [^PParser p ^long idx value]
   (.parseValue p idx value))
 
 
 (defn data-into-map [^PParser p]
   (.dataIntoMap p))
+
+
+(defn tech-v3->datahike-dtypes [dt]
+  (cond
+    (identical? :float32 dt) :db.type/float
+    (identical? :float64 dt) :db.type/double
+    (contains? #{:int16 :int32 :int64} dt) :db.type/long
+    (identical? :string dt) :db.type/string
+    (identical? :bool dt) :db.type/boolean
+    ; Could be in the `:else`, but datetimes seem common enough to warrant this spot
+    (or (contains? dt/datetime-datatypes dt)
+        (identical? :db.type/instant dt)) dt
+    (contains? #{:uuid :keyword :symbol} dt) (keyword "db.type" (name dt))
+    (identical? :big-integer dt) :db.type/bigint
+    (identical? :decimal dt) :db.type/bigdec
+    ; Refs and anything else supported but somehow not caught above.
+    ; Where applicable, error can be thrown downstream on parse failure.
+    :else dt))
 
 
 (defn- parser-data-into-map
@@ -113,28 +138,23 @@
    (parser-data-into-map col-idx col-name parser-dtype parse-fn missing-indexes nil nil)))
 
 
-(defn- parser-description->dtype-fn-tuple [parser-entry]
-  (let [[dtype parse-fn] (if (vector? parser-entry)
-                           parser-entry
-                           [parser-entry])
-        formattable-dt-dtypes (disj dt/datetime-datatypes :instant)]
-    (assert (keyword? dtype))
+(defn- dtype-parser-fn-tuple [parser-descriptor]
+  (let [[dtype parse-fn] (if (vector? parser-descriptor)
+                           parser-descriptor
+                           [parser-descriptor])]
+    (when-not ((clj-set/union (set (keys default-coercers))
+                              #{:db.type/bigdec :db.type/ref :db.type/tuple})
+               dtype)
+      (throw (IllegalArgumentException.
+              (format "Unrecognized data type: %s" dtype))))
     [dtype
-     (cond
-       (instance? IFn parse-fn)
+     (if (instance? IFn parse-fn)
        (utils/make-safe-parse-fn parse-fn)
-       (and (formattable-dt-dtypes dtype)
-            (string? parse-fn))
-       (dt/datetime-formatter-parse-fn dtype (DateTimeFormatter/ofPattern parse-fn))
-       (and (formattable-dt-dtypes dtype)
-            (instance? DateTimeFormatter parse-fn))
-       (dt/datetime-formatter-parse-fn dtype parse-fn)
-       :else
        (if-let [ret-fn (get default-coercers dtype)]
          ret-fn
-         (-> (format "Unrecognized data and parse function type: %s and %s" dtype parse-fn)
-             IllegalArgumentException.
-             throw)))]))
+         (->> (format "Default coercer unavailable for data type %s" dtype)
+              IllegalArgumentException.
+              throw)))]))
 
 
 (deftype FixedTypeParser [col-idx col-name parser-dtype parse-fn
@@ -147,27 +167,24 @@
       (csv-read/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
       (or (string? value)
-          (not (identical? (utils/fast-dtype value) parser-dtype)))
+          (-> (tech-v3->datahike-dtypes (utils/fast-dtype value))
+              (identical? parser-dtype)
+              not))
       (when (identical? parse-failure (parse-fn value))
         (do (.add failed-indexes (unchecked-int idx))
             (.add failed-values value)))))
   (dataIntoMap [_this]
     (parser-data-into-map col-idx col-name parser-dtype parse-fn
-                          missing-indexes failed-values failed-indexes)))
+                          missing-indexes failed-indexes failed-values)))
 
 
 (defn fixed-type-parser
   ^PParser [col-idx col-name parser-descriptor]
-  (let [[dtype parse-fn]    (parser-description->dtype-fn-tuple parser-descriptor)
-        failed-values       (dtype/make-container :list :object 0)
+  (let [[dtype parse-fn]    (dtype-parser-fn-tuple parser-descriptor)
+        missing-indexes     (bitmap/->bitmap)
         failed-indexes      (bitmap/->bitmap)
-        missing-indexes     (bitmap/->bitmap)]
-    (FixedTypeParser. col-idx col-name dtype parse-fn missing-indexes failed-values failed-indexes)))
-
-
-(def default-parser-datatype-sequence
-  [:boolean :int64 :float64 :uuid
-   :zoned-date-time :local-date-time :local-date :string])
+        failed-values       (dtype/make-container :list :object 0)]
+    (FixedTypeParser. col-idx col-name dtype parse-fn missing-indexes failed-indexes failed-values)))
 
 
 ;; Gets next parser function that can be applied to value without resulting in a failure,
@@ -206,6 +223,7 @@
                 (set! parse-fn first-parse-fn))))
         (cond
           (and (not (-> (utils/fast-dtype value)
+                        tech-v3->datahike-dtypes
                         (identical? parser-dtype)))
                parse-fn)
           (when (identical? parse-failure
@@ -234,9 +252,14 @@
                              nil
                              nil
                              (bitmap/->bitmap)
-                             (mapv (juxt identity default-coercers) parser-datatype-sequence)))
+                             (mapv (juxt identity default-coercers)
+                                   parser-datatype-sequence)))
   (^PParser [col-idx col-name]
-   (promotional-string-parser col-idx col-name default-parser-datatype-sequence)))
+   (let [default-parser-dtype-sequence
+         (-> (into [:db.type/boolean :db.type/long :db.type/double :db.type/uuid]
+                   dt/datetime-datatypes)
+             (conj :db.type/string))]
+     (promotional-string-parser col-idx col-name default-parser-dtype-sequence))))
 
 
 (defn- trim-nils [^PersistentVector parsers]
@@ -249,141 +272,201 @@
         [])))
 
 
-(deftype VectorParser [col-idx col-name
+(deftype VectorParser [col-idx
+                       col-name
                        ^ObjectArrayList parsers
+                       vector-str->elmt-strs
                        col-idx->parser
                        ^:unsynchronized-mutable ^int min-length
                        ^:unsynchronized-mutable ^int max-length
-                       ^RoaringBitmap missing-indexes]
+                       ^RoaringBitmap missing-indexes
+                       ^RoaringBitmap failed-indexes
+                       ^IMutList failed-values]
   PParser
   (parseValue [_this idx value]
-    (let [vector-length (.length ^PersistentVector value)]
-      (when (< vector-length min-length)
-        (set! min-length vector-length))
-      (when (> vector-length max-length)
-        (set! max-length vector-length))
-      (doseq [i (range vector-length)]
-        (-> (col-idx->parser i)
-            (parse-value! idx (nth value i))))))
+    (if (csv-read/missing-value? value)
+      (.add missing-indexes (unchecked-int idx))
+      (let [elmts (if (string? value)
+                    (vector-str->elmt-strs value)
+                    (if (vector? value)
+                      value
+                      parse-failure))]
+        (if (identical? elmts parse-failure)
+          (if failed-indexes
+            (do (.add failed-indexes (unchecked-int idx))
+                (.add failed-values value))
+            parse-failure)
+          (let [vector-length (.length ^PersistentVector elmts)]
+            (when (< vector-length min-length)
+              (set! min-length vector-length))
+            (when (> vector-length max-length)
+              (set! max-length vector-length))
+            (doseq [i (range vector-length)]
+              (-> (col-idx->parser i)
+                  (parse-value! idx (nth elmts i)))))))))
   (dataIntoMap [_this]
-    {:column-idx col-idx
-     :column-name col-name
-     :parser-dtype :vector
-     :min-length min-length
-     :max-length max-length
-     :field-parser-data (trim-nils (mapv #(when %
-                                            (dissoc (data-into-map %)
-                                                    :column-name))
-                                         parsers))}))
+    (-> (parser-data-into-map col-idx col-name :vector nil missing-indexes failed-indexes failed-values)
+        (merge {:min-length min-length
+                :max-length max-length
+                :field-parser-data (trim-nils (mapv #(when %
+                                                       (dissoc (data-into-map %) :column-name))
+                                                    parsers))}))))
 
 
-(defn- make-colname
-  ([col-idx col-idx->colname]
-   (let [colname (when col-idx->colname
-                   (col-idx->colname col-idx))]
-     (if (empty? colname)
-       (str "column-" col-idx)
-       colname)))
-  ([col-idx]
-   (make-colname col-idx nil)))
+(defn- vector-elmt-idx->name [idx]
+  (str "element-" idx))
 
 
-(defn- options->parser-fn
-  "Given the (user-specified) options map for parsing, create the specific parse context, i.e.
-  a function that produces a column parser for a given column name or index; applicable only to
-  scalar columns. `:parser-type` can be `nil`, for example if only columns with specified parser
-  functions or datatypes should be parsed."
-  ([options parser-type parser-descriptor col-idx->colname]
-   (let [default-parse-fn (case (get options :parser-type parser-type)
-                            :string promotional-string-parser
-                            nil (constantly nil))
-         parser-descriptor (or parser-descriptor (:parser-fn options))]
-     (fn [col-idx]
-       (let [colname (when col-idx->colname (col-idx->colname col-idx))
-             colname (keyword (if (empty? colname)
-                                (make-colname col-idx)
-                                (string/replace colname #"\s+" "")))]
-         (cond
-           (nil? parser-descriptor)
-           (default-parse-fn col-idx colname)
-           (map? parser-descriptor)
-           (if-let [col-parser-desc (or (get parser-descriptor colname)
-                                        (get parser-descriptor col-idx))]
-             (fixed-type-parser col-idx colname col-parser-desc)
-             (default-parse-fn col-idx colname))
-           :else
-           (fixed-type-parser col-idx colname parser-descriptor))))))
-  ([options parser-type parser-descriptor]
-   (options->parser-fn options parser-type parser-descriptor nil)))
+(defn- parser-array-list
+  ([data] (-> (object-array (or data 16))
+              ObjectArrayList.))
+  ([] (parser-array-list nil)))
 
 
-(defn- options->col-idx-parse-context
-  "Given an option map, a parse type, and a function mapping column index to column name,
-  return a map of parsers and a function to get a parser from a given column idx. Returns:
-  {:parsers - parsers
-   :col-idx->parser - given a column idx, get a parser.  Mutates parsers."
-  ([options parser-type parser-descriptor col-idx->colname]
-   (let [make-parser-fn (options->parser-fn options
-                                            parser-type
-                                            parser-descriptor
-                                            col-idx->colname)
-         parsers (ObjectArrayList. (object-array 16))
-         col-idx->parser (fn [col-idx]
-                           (let [col-idx (long col-idx)]
-                             (if-let [parser (.readObject parsers col-idx)]
-                               parser
-                               (let [parser (make-parser-fn (long col-idx))]
-                                 (.writeObject parsers col-idx parser)
-                                 parser))))]
-     {:parsers parsers
-      :col-idx->parser col-idx->parser}))
-  ([options parser-type parser-descriptor]
-   (options->col-idx-parse-context options parser-type parser-descriptor nil)))
+(defn- col-idx->parser-fn
+  ([^ObjectArrayList parsers make-parser-fn]
+   (fn [col-idx]
+     (let [col-idx (long col-idx)
+           parser (.readObject parsers col-idx)]
+       (if (or parser (nil? make-parser-fn))
+         parser
+         (when-let [parser (make-parser-fn col-idx)]
+           (.writeObject parsers col-idx parser)
+           parser)))))
+  ([^ObjectArrayList parsers]
+   (col-idx->parser-fn parsers nil)))
+
+
+(defn vector-parser
+  ([col-idx col-name vector-str->elmt-strs strict parsers-init]
+   (let [parsers (or parsers-init (parser-array-list))
+         make-parser-fn (when (nil? parsers-init)
+                          (fn [col-idx]
+                            (->> (vector-elmt-idx->name col-idx)
+                                 (promotional-string-parser col-idx))))
+         col-idx->parser (col-idx->parser-fn parsers make-parser-fn)]
+     (VectorParser. col-idx
+                    col-name
+                    parsers
+                    vector-str->elmt-strs
+                    col-idx->parser
+                    Integer/MAX_VALUE
+                    0
+                    (bitmap/->bitmap)
+                    (if strict nil (bitmap/->bitmap))
+                    (if strict
+                      nil
+                      (dtype/make-container :list :object 0)))))
+  ([col-idx col-name vector-str->elmt-strs strict]
+   (vector-parser col-idx col-name vector-str->elmt-strs strict nil)))
+
+
+(defn- fixed-types-vector-parser [col-idx col-name parser-spec options]
+  (let [dtypes (get parser-spec 0)
+        dtypes-count (count dtypes)
+        parse-fns (get parser-spec 1)
+        vector-str->elmt-strs (utils/vector-str->elmt-strs-fn options)]
+    (when (= dtypes-count 0)
+      (throw (IllegalArgumentException.
+              (str "At least 1 data type must be specified for vector parser, "
+                   (format "but 0 given for column %s (%s)" col-idx col-name)))))
+    (when (and (some? parse-fns)
+               (not= dtypes-count (count parse-fns)))
+      (->> (format "in vector parser description for column %s (%s)" col-idx col-name)
+           (str "Number of data types and parse functions specified unequal ")
+           IllegalArgumentException.
+           throw))
+    (->> (map #(fixed-type-parser %
+                                  (vector-elmt-idx->name %)
+                                  [(nth dtypes %)
+                                   (when (some? parse-fns)
+                                     (nth parse-fns %))])
+              (range dtypes-count))
+         parser-array-list
+         (vector-parser col-idx col-name vector-str->elmt-strs false))))
+
+
+;; TODO move?
+(defn col-idx->col-name-fn [options]
+  (fn [idx]
+    (let [default #(str "column-" %)]
+      (if-some [idx->colname (:idx->colname options)]
+        (if-some [colname (idx->colname idx)]
+          (if (> (.length ^String colname) 0)
+            colname
+            (default idx))
+          (default idx))
+        (default idx)))))
+
+
+;; TODO move?
+(defn colname->ident-fn [options]
+  (or (:colname->ident options)
+      #(-> (string/replace % #"\s+" "-")
+           keyword)))
+
+
+;; Create a function that produces a parser for a given column index
+(defn- create-col-parser-fn [header-row parsers-spec options]
+  (let [include-cols (or (:include-cols options)
+                         (constantly true))
+        idx->colname-default (col-idx->col-name-fn options)
+        idx->colname #(if (and (some? header-row)
+                               (< % (.length ^PersistentVector header-row)))
+                        (let [colname (nth header-row %)]
+                          (if (> (.length ^String colname) 0)
+                            colname
+                            (idx->colname-default %)))
+                        (idx->colname-default %))
+        colname->ident (colname->ident-fn options)
+        cascading-get (fn [f col-idx col-name]
+                        (or (f col-idx)
+                            (or (f col-name)
+                                (f (colname->ident col-name)))))]
+    (fn [col-idx]
+      (let [col-name (idx->colname col-idx)]
+        (when (cascading-get include-cols col-idx col-name)
+          (if-some [parser-spec (cascading-get parsers-spec col-idx col-name)]
+            (if (and (vector? parser-spec)
+                     (vector? (nth parser-spec 0)))
+              (fixed-types-vector-parser col-idx col-name parser-spec options)
+              (fixed-type-parser col-idx col-name parser-spec))
+            (promotional-string-parser col-idx col-name)))))))
 
 
 (defn- iter->parsers
-  ^ObjectArrayList [header-row ^Iterator row-iter num-rows options]
-  (let [{:keys [parsers col-idx->parser]}
-        (options->col-idx-parse-context
-         options :string nil (fn [^long col-idx]
-                               (get header-row col-idx)))]
+  ^ObjectArrayList [header-row ^Iterator row-iter parsers-spec options]
+  (let [parsers (parser-array-list)
+        col-idx->parser (->> (create-col-parser-fn header-row parsers-spec options)
+                             (col-idx->parser-fn parsers))]
     ; TODO Does reduce-kv work instead? If yes, is it comparable in performance?
     (reduce (hamf-rf/indexed-accum
              acc row-idx row
              (reduce (hamf-rf/indexed-accum
                       acc col-idx field
-                      (-> (col-idx->parser col-idx)
-                          (parse-value! row-idx field)))
+                      (some-> (col-idx->parser col-idx)
+                              (parse-value! row-idx field)))
                      nil
                      row))
             nil
-            (TakeReducer. row-iter num-rows))
+            (TakeReducer. row-iter (:parser-sample-size options)))
     parsers))
 
 
-(defn- options->parsers [input options]
+(defn- csv->parsers [input parsers-spec options]
   (let [row-iter ^Iterator (csv-read/csv->row-iter input options)
         header-row (csv-read/row-iter->header-row row-iter options)]
     (when (.hasNext row-iter)
-      (iter->parsers header-row row-iter (:parser-sample-size options) options))))
+      (iter->parsers header-row row-iter parsers-spec options))))
 
 
-(defn vector-parser [col-idx col-name options]
-  (let [parser-opts (get :parser-fn options)
-        {:keys [parsers col-idx->parser]}
-        (->> (or (get parser-opts col-name)
-                 (get parser-opts col-idx))
-             (options->col-idx-parse-context options :string))]
-    (->> (bitmap/->bitmap)
-         (VectorParser. col-idx col-name parsers col-idx->parser Integer/MAX_VALUE 0))))
-
-
-(defn- col-vector-parse-context [parsers options]
-  (let [parser-data (mapv #(when % (data-into-map %)) parsers)
+(defn- iter->vector-parsers [parsers ^Iterator row-iter options]
+  (let [vector-str->elmt-strs (utils/vector-str->elmt-strs-fn options)
+        parser-data (mapv #(when % (data-into-map %)) parsers)
         vector-parsers (-> (fn [parser {:keys [column-idx column-name parser-dtype]}]
                              (when (and (instance? PromotionalStringParser parser)
-                                        (identical? parser-dtype :string))
-                               (vector-parser column-idx column-name options)))
+                                        (identical? parser-dtype :db.type/string))
+                               (vector-parser column-idx column-name vector-str->elmt-strs true)))
                            (mapv parsers parser-data)
                            object-array
                            ObjectArrayList.)
@@ -392,106 +475,39 @@
                               (.contains
                                ^RoaringBitmap (nth missing-indexes col-idx)
                                (unchecked-int row-idx)))]
-    {:vector-parsers vector-parsers
-     :row-missing-in-col? row-missing-in-col?}))
-
-
-(defn- iter->vector-parsers [parsers ^Iterator row-iter num-rows options]
-  (let [vector-open (get options :vector-open \[)
-        vector-close (get options :vector-close \])
-        {:keys [^ObjectArrayList vector-parsers row-missing-in-col?]}
-        (col-vector-parse-context parsers options)
-        string->vector (csv-read/string->vector-parser options)]
     (reduce (hamf-rf/indexed-accum
              acc row-idx row
              (reduce (hamf-rf/indexed-accum
                       acc col-idx field
-                      (if-some [parser (.readObject vector-parsers col-idx)]
+                      (when-some [parser (.readObject vector-parsers col-idx)]
                         (when (not (row-missing-in-col? row-idx col-idx))
-                          (let [len (.length ^String field)]
-                            (if (and (> len 0)
-                                     (identical? (nth field 0) vector-open)
-                                     (-> (nth field (dec len))
-                                         (identical? vector-close)))
-                              (->> (string->vector field)
-                                   (parse-value! parser row-idx))
-                              (.writeObject vector-parsers col-idx nil))))))
-                     nil
-                     row))
+                          (when (identical? (parse-value! parser row-idx field)
+                                            parse-failure)
+                            (.writeObject vector-parsers col-idx nil)))))
+                      nil
+                      row))
             nil
-            (TakeReducer. row-iter num-rows))
+            (TakeReducer. row-iter (:parser-sample-size options)))
     vector-parsers))
 
 
-(defn- options->vector-parsers [parsers input options]
+(defn- csv->vector-parsers [parsers input options]
   (let [row-iter (csv-read/csv->header-skipped-row-iter input options)]
     (when (.hasNext row-iter)
-      (iter->vector-parsers parsers row-iter (:parser-sample-size options) options))))
+      (iter->vector-parsers parsers row-iter options))))
 
 
-(defn csv->parsers
-  ([input options]
+(defn infer-parsers
+  ([input parsers-spec options]
    (let [options (update options :parser-sample-size #(or % 12800))
-         parsers (options->parsers input options)]
-     (->> (options->vector-parsers parsers input options)
+         parsers (csv->parsers input parsers-spec options)]
+     (->> (csv->vector-parsers parsers input options)
           (mapv (fn [p vp]
                   (when-some [parser (or vp p)]
                     (data-into-map parser)))
                 parsers)
-          trim-nils)))
+          (into [] (filter some?)))))
+  ([input parsers-spec]
+   (infer-parsers input parsers-spec {}))
   ([input]
-   (csv->parsers input {})))
-
-
-(comment
-  (require '[clojure.java.io :as io]
-           '[clojure.string :as str]
-           '[charred.api :as charred]
-           '[tech.v3.dataset.io.csv :as csv]
-           '[tech.v3.dataset.io.datetime :as parse-dt])
-
-  (with-open [reader (io/reader "test/data/array-test.csv")]
-    (doall
-     (charred/read-csv reader)))
-
-  (def gotta-catch-em-all (csv->parsers "test/data/pokemon.csv"))
-  gotta-catch-em-all
-  (type gotta-catch-em-all)
-  (count gotta-catch-em-all)
-  (nth gotta-catch-em-all 23)
-
-  (def dial-311 (csv->parsers "test/data/311_service_requests_2010-present_sample.csv"))
-  dial-311
-  (keyword (:column-name (nth dial-311 2)))
-  (count dial-311)
-  (subvec dial-311 32)
-
-  (def dial-311-full (csv->parsers "test/data/311_service_requests_2010-present_sample.csv" {:batch-size Long/MAX_VALUE}))
-  dial-311-full
-  (def dial-311-techio (csv/csv->dataset "test/data/311_service_requests_2010-present_sample.csv"))
-
-  ; TODO handle spaces in col names
-  (str (keyword "Location Type"))
-  (def dial-311-custom-vec-parse
-    (let [options {;:batch-size Long/MAX_VALUE
-                   :parser-fn {40 [:vector
-                                   (fn [v]
-                                     (let [len (.length ^String v)
-                                           re (re-pattern ", ")]
-                                       (mapv (get default-coercers :float32)
-                                             (-> (subs v 1 (dec len))
-                                                 (str/split re)))))]}}]
-      (csv->parsers "test/data/311_service_requests_2010-present_sample.csv" options)))
-  dial-311-custom-vec-parse
-  (subvec dial-311-custom-vec-parse 32)
-
-  (import '[java.time LocalDate LocalDateTime LocalTime]
-          '[java.time.format DateTimeFormatter DateTimeFormatterBuilder])
-
-  (parse-dt/parse-local-date-time "09/02/2020 04:14:43 PM")
-  (LocalTime/parse "01:02:03 AM" (DateTimeFormatter/ofPattern "hh:mm:ss a" Locale/ENGLISH))
-  (LocalDate/parse "09022020" (DateTimeFormatter/ofPattern "ddMMyyyy" Locale/ENGLISH))
-  (dt/parse-local-date-time "09/02/2020 04:14:43 PM")
-
-  (ObjectArrayList. (object-array 16))
-  )
+   (infer-parsers input {} {})))

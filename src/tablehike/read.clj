@@ -42,21 +42,10 @@
     (vec (.next row-iter))))
 
 
-(defn ^Iterator csv->header-skipped-row-iter [input options]
+(defn csv->header-skipped-row-iter ^Iterator [input options]
   (let [row-iter ^Iterator (csv->row-iter input options)
         _ (row-iter->header-row row-iter options)]
     row-iter))
-
-
-(defn string->vector-parser [options]
-  (let [opts (if-some [vs (get options :vector-separator)]
-               (assoc options :separator vs)
-               options)]
-    (fn [string]
-      (let [len (.length ^String string)]
-        (-> (subs string 1 (dec len))
-            (charred/read-csv opts)
-            (nth 0))))))
 
 
 (defn missing-value?
@@ -68,4 +57,5 @@
     (not (instance? Number value))
     (or (nil? value)
         (.equals "" value)
+        (identical? value :tablehike/missing)
         (and (string? value) (re-matches #"(?i)^n\/?a$" value)))))

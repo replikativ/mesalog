@@ -6,7 +6,6 @@
             [datahike.api :as d]
             [tablehike.core :refer :all]
             [tablehike.parse.parser :as parser]
-            [tablehike.schema :as schema]
             [tablecloth.api :as tc]
             [tech.v3.datatype.datetime :as dtype-dt])
   (:import [java.util UUID]
@@ -63,7 +62,7 @@
                        (map (fn [s]
                               [(:db/ident s) s]))
                        schema-vec)
-          _ (load-csv shapes-file test-conn schema-vec)
+          _ (load-csv shapes-file test-conn {} schema-vec)
           db-schema (d/schema @test-conn)]
       (is (every? (fn [[a s]]
                     (= (dissoc s :db/id) (a schema)))
@@ -105,8 +104,9 @@
 ; coarse criterion to test with
 (deftest parser-sample-size-option
   (testing ":parser-sample-size shows the expected behaviour"
-    (let [parsers (parser/csv->parsers agencies-file
-                                       {:parser-sample-size 20})
+    (let [parsers (parser/infer-parsers agencies-file
+                                        {}
+                                        {:parser-sample-size 20})
           nonnull-attrs (->> (filter :parser-fn parsers)
                              (map :column-name))
           ds-cols (-> (tc/dataset agencies-file)
@@ -136,7 +136,7 @@
   (into {}
         (map (fn [row]
                [(:col-name row)
-                (schema/parser->schema-dtype (:datatype row))]))
+                (parser/tech-v3->datahike-dtypes (:datatype row))]))
         (tc/rows (tc/info ds) :as-maps)))
 
 
@@ -253,7 +253,7 @@
   (testing "Attributes specified as unique are correctly reflected in schema"
     (let [schema-spec {:db.unique/identity #{:agency/id}
                        :db.unique/value #{:agency/name :agency/url}}]
-      (load-csv agencies-file test-conn schema-spec)
+      (load-csv agencies-file test-conn {} schema-spec)
       (let [schema (d/schema @test-conn)]
         (doseq [[unique-type attrs] schema-spec
                 attr attrs]
@@ -263,7 +263,7 @@
 
 (deftest indexed-attrs
   (testing "Attributes specified to be indexed have indexing set to true in schema"
-    (load-csv agencies-file test-conn {:db/index #{:agency/name}})
+    (load-csv agencies-file test-conn {} {:db/index #{:agency/name}})
     (is (-> (d/schema @test-conn)
             :agency/name
             :db/index))))
@@ -271,7 +271,7 @@
 
 (deftest no-history-attrs
   (testing "Attributes specified as noHistory have that set to true in schema"
-    (load-csv shapes-file test-conn {:db/noHistory #{:shape/pt-lat :shape/pt-lon}})
+    (load-csv shapes-file test-conn {} {:db/noHistory #{:shape/pt-lat :shape/pt-lon}})
     (let [schema (d/schema @test-conn)]
       (is (:db/noHistory (:shape/pt-lat schema)))
       (is (:db/noHistory (:shape/pt-lon schema))))))
@@ -281,7 +281,7 @@
   (testing "Tuples formed by separate columns are correctly reflected in schema"
     (->> {:db.type/tuple {:shape/coordinates
                           [:shape/pt-lat :shape/pt-lon]}}
-         (load-csv shapes-file test-conn))
+         (load-csv shapes-file test-conn {}))
     (let [schema (d/schema @test-conn)
           coordinates-schema (:shape/coordinates schema)]
       (is (= (set (keys schema))
@@ -294,7 +294,7 @@
   (testing "Composite tuples are correctly reflected in schema"
     (let [latlon [:shape/pt-lat :shape/pt-lon]]
       (->> {:db.type/compositeTuple {:shape/coordinates latlon}}
-           (load-csv shapes-file test-conn))
+           (load-csv shapes-file test-conn {}))
       (let [schema (d/schema @test-conn)
             coordinates-schema (:shape/coordinates schema)]
         (is (= (set (keys schema))
@@ -318,7 +318,7 @@
     (let [latlon [:shape/pt-lat :shape/pt-lon]]
       (->> {:db.unique/identity #{:shape/id}
             :db.type/compositeTuple {:shape/coordinates latlon}}
-           (load-csv shapes-file test-conn))
+           (load-csv shapes-file test-conn {}))
       (is (every? #(= (:db/cardinality %)
                       :db.cardinality/many)
                   (-> (d/schema @test-conn)
@@ -345,7 +345,7 @@
     (let [shapes-ds (tc-dataset shapes-file)
           tuple-cols [:shape/pt-lat :shape/pt-lon :shape/pt-sequence]
           _ (->> {:db.type/tuple {:shape/pt tuple-cols}}
-                 (load-csv shapes-file test-conn))
+                 (load-csv shapes-file test-conn {}))
           pt-schema (:shape/pt (d/schema @test-conn))]
       (is (= (:db/valueType pt-schema) :db.type/tuple))
       (is (= (:db/tupleTypes pt-schema)

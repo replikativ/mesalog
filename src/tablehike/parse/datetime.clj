@@ -1,3 +1,4 @@
+; TODO replace first and second with more performant equivalents
 (ns tablehike.parse.datetime
   (:require [clojure.string :as s]
             [tablehike.parse.utils :as utils])
@@ -7,6 +8,10 @@
 
 
 (set! *warn-on-reflection* true)
+
+
+(def datetime-datatypes
+  (sorted-set :offset-date-time :zoned-date-time :local-date-time :local-date :instant))
 
 
 ;;Assuming that the string will have /,-. replaced with /space
@@ -103,11 +108,7 @@ parse a wide variety of local date formats."
                                  str-data))))))
 
 
-(def datetime-datatypes
-  #{:instant :local-date :local-date-time :zoned-date-time :offset-date-time})
-
-
-(defn datetime->date [dt]
+(defn- datetime->date [dt]
   (-> (if (instance? OffsetDateTime dt)
         (.toInstant ^OffsetDateTime dt)
         (let [zone-id (ZoneId/systemDefault)
@@ -119,27 +120,46 @@ parse a wide variety of local date formats."
       Date/from))
 
 
-(defn- make-safe-datetime-parse-fn [parse-fn]
-  (utils/make-safe-parse-fn (comp datetime->date parse-fn)))
+(defn datetime->date-parse-fn [parse-fn]
+  (comp datetime->date parse-fn))
+
+
+(defn instant-parse-fn [s]
+  (if (string? s)
+    (Instant/parse s)
+    (Instant/from s)))
 
 
 (def ^{:doc "Map of datetime datatype to generalized parse fn."}
   datatype->general-parse-fn-map
   (into {}
         (map (fn [[k v]]
-               [k (make-safe-datetime-parse-fn v)]))
-        {:local-date parse-local-date
-         :local-date-time parse-local-date-time
-         :instant #(Instant/parse ^String %)
-         :offset-date-time #(OffsetDateTime/parse ^String %)
-         :zoned-date-time #(ZonedDateTime/parse ^String %)}))
+               [k (-> (datetime->date-parse-fn v)
+                      utils/make-safe-parse-fn)]))
+        {:local-date #(if (string? %)
+                        (parse-local-date %)
+                        (LocalDate/from %))
+         :local-date-time #(if (string? %)
+                             (parse-local-date-time %)
+                             (LocalDateTime/from %))
+         :instant instant-parse-fn
+         :offset-date-time #(if (string? %)
+                              (OffsetDateTime/parse %)
+                              (OffsetDateTime/from %))
+         :zoned-date-time #(if (string? %)
+                             (ZonedDateTime/parse %)
+                             (ZonedDateTime/from %))}))
+
+
+(defn datetime-formatter [pattern]
+  (DateTimeFormatter/ofPattern pattern))
 
 
 (defn datetime-formatter-parse-fn
   "Given a datatype and a formatter return a function that attempts to
   parse that specific datatype, then convert into a java.util.Date."
   [dtype formatter]
-  (make-safe-datetime-parse-fn
+  (datetime->date-parse-fn
    (case dtype
      :local-date #(LocalDate/parse % formatter)
      :local-date-time #(LocalDateTime/parse % formatter)

@@ -1,8 +1,8 @@
 (ns tablehike.schema
-  (:require [clojure.set :as set]
+  (:require [clojure.set :as clj-set]
             [clojure.string :as string]
             [ham-fisted.reduce :as hamf-rf]
-            [tablehike.parse.datetime :as dt]
+            [tablehike.parse.parser :as parser]
             [tablehike.parse.utils :as parse-utils]
             [tablehike.read :as csv-read])
   (:import [clojure.lang Indexed]
@@ -10,32 +10,25 @@
            [tablehike.read TakeReducer]))
 
 
-(defn parser->schema-dtype [dtype]
-  (cond
-    (identical? :bool dtype) :db.type/boolean
-    (identical? :float32 dtype) :db.type/float
-    (identical? :float64 dtype) :db.type/double
-    (contains? #{:int16 :int32 :int64} dtype) :db.type/long
-    (contains? dt/datetime-datatypes dtype) :db.type/instant
-    :else (keyword "db.type" (name dtype))))
-
-
-(defn- map-col-names->schema-dtypes [parsers]
+(defn- map-col-idents->schema-dtypes [parsers]
   (into {}
         (comp (filter (comp some? :parser-dtype))
-              (map (fn [{:keys [column-name parser-dtype] :as p}]
-                     [column-name
+              (map (fn [{:keys [column-ident parser-dtype] :as p}]
+                     [column-ident
                       (if (identical? :vector parser-dtype)
-                        (mapv #(parser->schema-dtype (get % :parser-dtype))
+                        (mapv #(get % :parser-dtype)
                               (get p :field-parser-data))
-                        (parser->schema-dtype parser-dtype))])))
+                        parser-dtype)])))
         parsers))
 
 
+; :db/valueType not assigned if a column is vector-valued and:
+; 1. values have length two, with keywords in the first position
+; 2. values have varying length but elements of homogeneous type
 (defn- init-col-attr-schema
-  ([col-name col-schema-dtype col-parser]
+  ([col-ident col-schema-dtype col-parser]
    (when (some? col-schema-dtype)
-     (merge {:db/ident col-name}
+     (merge {:db/ident col-ident}
             (if (vector? col-schema-dtype)
               (let [{:keys [min-length max-length]} col-parser
                     homogeneous (parse-utils/homogeneous-sequence? col-schema-dtype)]
@@ -52,18 +45,18 @@
                   (if homogeneous
                     {:db/cardinality :db.cardinality/many}
                     (let [parts '("Unrecognized data type in column"
-                                  col-name
+                                  col-ident
                                   ": attribute with variable length/cardinality"
                                   "and heterogeneous type not allowed")
                           msg (string/join " " parts)]
                       (throw (IllegalArgumentException. msg))))))
               {:db/valueType col-schema-dtype}))))
-  ([col-name col-schema-dtype]
-   (init-col-attr-schema col-name col-schema-dtype nil)))
+  ([col-ident col-schema-dtype]
+   (init-col-attr-schema col-ident col-schema-dtype nil)))
 
 
 (defn- map-tuple-idents->tx-schemas
-  [schema-tuple-attrs col-name->schema-dtype]
+  [schema-tuple-attrs col-ident->schema-dtype]
   (let [init-tuple-schema
         (fn [t tuple-types]
           (merge {:db/ident t
@@ -74,13 +67,13 @@
     (cond
       (map? schema-tuple-attrs)
       (map (fn [[t attrs]]
-             (and col-name->schema-dtype
-                  [t (->> (mapv col-name->schema-dtype attrs)
+             (and col-ident->schema-dtype
+                  [t (->> (mapv col-ident->schema-dtype attrs)
                           (init-tuple-schema t))])))
       (set? schema-tuple-attrs)
       (map (fn [t]
-             (and col-name->schema-dtype
-                  [t (->> (get col-name->schema-dtype t)
+             (and col-ident->schema-dtype
+                  [t (->> (get col-ident->schema-dtype t)
                           (init-tuple-schema t))])))
       (nil? schema-tuple-attrs)
       (map identity))))
@@ -91,18 +84,18 @@
                                 composite-tuples :db.type/compositeTuple
                                 refs :db.type/ref
                                 :as schema-spec}]
-  (let [col-name->dtype (map-col-names->schema-dtypes parsers)
-        col-name->index (parse-utils/map-col-names->indices parsers)
-        col-name-dtype->tx-schema (fn [col dtype]
-                                    (->> (col col-name->index)
-                                         (nth parsers)
-                                         (init-col-attr-schema col dtype)))]
+  (let [col-ident->dtype (map-col-idents->schema-dtypes parsers)
+        col-ident->index (parse-utils/map-col-idents->indices parsers)
+        col-ident-dtype->tx-schema (fn [col dtype]
+                                     (->> (get col-ident->index col)
+                                          (nth parsers)
+                                          (init-col-attr-schema col dtype)))]
     ; Give user-specified schema precedence in either case: the customer is always right! ;-)
     ; (That also means taking the blame/fall if they're wrong: no free lunch!)
     (if (vector? schema-spec)
       (into {}
             (map (fn [{a-ident :db/ident :as a-schema}]
-                   [a-ident (-> {:db/valueType (a-ident col-name->dtype)}
+                   [a-ident (-> {:db/valueType (a-ident col-ident->dtype)}
                                 (merge a-schema))]))
             schema-spec)
       (let [ref-idents (if (map? refs)
@@ -112,7 +105,7 @@
             ; First init schemas of individual composite tuple columns and of the tuples.
             ; Exclude if any of the attrs is missing throughout.
             (-> (fn [m t cols]
-                  (let [col-dtypes (mapv col-name->dtype cols)]
+                  (let [col-dtypes (mapv col-ident->dtype cols)]
                     (if (every? identity col-dtypes)
                       (-> (fn [m i col]
                             (->> (nth col-dtypes i)
@@ -124,8 +117,8 @@
                                     :db/tupleAttrs cols}))
                       m)))
                 (reduce-kv {} composite-tuples)
-                ; Then init schemas for regular tuples
-                (into (comp (map-tuple-idents->tx-schemas tuples col-name->dtype)
+                                        ; Then init schemas for regular tuples
+                (into (comp (map-tuple-idents->tx-schemas tuples col-ident->dtype)
                             (filter some?))
                       tuples)
                 ; Then for refs
@@ -139,11 +132,11 @@
                    (mapcat identity (vals tuples))
                    tuples)
                  (concat ref-idents)
-                 (apply dissoc col-name->dtype)
+                 (apply dissoc col-ident->dtype)
                  ; Then init schemas for remaining (non-tuple) columns
                  (into ident->tx-schema
                        (map (fn [[col dtype]]
-                              [col (col-name-dtype->tx-schema col dtype)]))))
+                              [col (col-ident-dtype->tx-schema col dtype)]))))
             update-attr-schema
             (fn [a-schema schema-a]
               (let [schema-a-ns (namespace schema-a)
@@ -165,10 +158,10 @@
                                       (update m a #(update-attr-schema % schema-a))
                                       ; in any unusual case where columns are used as both
                                       ; independent attributes and part of a tuple
-                                      (if (contains? col-name->dtype a)
+                                      (if (contains? col-ident->dtype a)
                                         (assoc m a (update-attr-schema
-                                                    (->> (col-name->dtype a)
-                                                         (col-name-dtype->tx-schema a))
+                                                    (->> (col-ident->dtype a)
+                                                         (col-ident-dtype->tx-schema a))
                                                     schema-a))
                                         m)))
                                   m
@@ -184,11 +177,11 @@
                                          schema)]
                             [ident (if (and (-> (:db/cardinality schema)
                                                 (identical? :db.cardinality/one))
-                                            (-> (ident col-name->dtype)
+                                            (-> (ident col-ident->dtype)
                                                 parse-utils/homogeneous-sequence?))
                                      (-> (assoc schema :db/valueType :db.type/tuple)
                                          (assoc :db/tupleType
-                                                (first (ident col-name->dtype))))
+                                                (first (ident col-ident->dtype))))
                                      schema)])))))))))
 
 
@@ -277,6 +270,8 @@
                                           (assoc schema :db/valueType)))]
                         [indices (if (some? (get schema :db/cardinality))
                                    schema
+                                   ; cardinality-1 if there are no ID columns, or every
+                                   ; attr column still has an entry in a-col-idx->evs
                                    (->> (if (or (nil? a-col-idx->evs)
                                                 (-> #(some? (aget a-col-idx->evs %))
                                                     (every? indices)))
@@ -309,7 +304,7 @@
                                   (map (fn [[ident schema]]
                                          [ident (get schema :db/valueType)]))
                                   schema)
-                            (map-col-names->schema-dtypes parsers))
+                            (map-col-idents->schema-dtypes parsers))
         ident->tx-schema (map-idents->tx-schemas parsers schema-spec)
         csv-unique-attrs (into #{}
                                (comp (map (fn [[ident {unique :db/unique}]]
@@ -345,15 +340,15 @@
              (into {} (map (fn [[k v]]
                              [k (HashSet. (into #{} v))]))))
         unique-attrs (when (> (count maybe-refs) 0)
-                       (set/union rschema-unique-id rschema-unique-val csv-unique-attrs))
+                       (clj-set/union rschema-unique-id rschema-unique-val csv-unique-attrs))
         init-schema-builder
         (fn [id-col-indices id-attr-val->row-idx a-col-idx->evs maybe-tuples]
-          (SchemaBuilder. (mapv :column-name parsers)
+          (SchemaBuilder. (mapv :column-ident parsers)
                           ident->indices
                           ident->dtype
                           (HashMap. ident->tx-schema)
                           unique-attrs
-                          (csv-read/string->vector-parser options)
+                          (parse-utils/vector-str->elmt-strs-fn options)
                           maybe-refs
                           id-col-indices
                           id-attr-val->row-idx
@@ -368,7 +363,7 @@
                                           (aset ^"[Ljava.lang.Object;" array idx))
                                      array)
                                    (object-array (count parsers))
-                                   (set/union no-cardinality maybe-tuples))
+                                   (clj-set/union no-cardinality maybe-tuples))
                            maybe-tuples)
       (init-schema-builder nil nil nil nil))))
 

@@ -2,9 +2,10 @@
   (:require [datahike.api :as d]
             [tablehike.parse.parser :as parser]
             [tablehike.parse.utils :as parse-utils]
+            [tablehike.parse.datetime :as dt]
             [tablehike.read :as csv-read]
             [tablehike.schema :as schema])
-  (:import [clojure.lang Indexed IPersistentVector]
+  (:import [clojure.lang Indexed PersistentVector]
            [tablehike.read TakeReducer]))
 
 
@@ -14,7 +15,7 @@
                                     composite-tuples :db.type/compositeTuple
                                     refs :db.type/ref}
                                    options]
-  (let [string->vector (csv-read/string->vector-parser options)
+  (let [string->vector (parse-utils/vector-str->elmt-strs-fn options)
         parse-fns (-> #(if (= :vector (:parser-dtype %))
                          (let [field-parsers (:field-parser-data %)
                                field-dtypes (mapv :parser-dtype field-parsers)]
@@ -59,7 +60,7 @@
                          (let [^Indexed vals (->> (get ident->indices ident)
                                                   (into [] (map #(nth parsed-vals %))))]
                            (when (every? some? vals)
-                             (if (= (.length ^IPersistentVector vals) 1)
+                             (if (= (.length ^PersistentVector vals) 1)
                                [ident (if-some [ref-ident (get ref-attr->ref-ident ident)]
                                         [ref-ident (.nth vals 0)]
                                         (.nth vals 0))]
@@ -70,16 +71,21 @@
 
 (defn load-csv
     "Reads, parses, and loads data from CSV file named `filename` into a Datahike database via
-  the connection `conn`, with optional specifications in `schema-spec` and `options`.
+  the connection `conn`, with optional specifications in `parsers-desc`, `schema-desc` and `options`.
 
-  *Please note that the functionality (API and implementation) documented here will likely undergo
-  major changes in the near future.*
+  *Please note that the functionality (API and implementation) documented here, in particular
+  aspects related to schema specification/inference and its interface with parser specification/inference,
+  is still evolving and will undergo changes, possibly major, in the future.*
 
   Each column represents an attribute, with keywordized column name as attribute ident, or
   otherwise, an element in a tuple. Type and cardinality are automatically inferred, though they
   sometimes require specification; in particular, cardinality many is well-defined and can only
   be inferred in the presence of a separate attribute marked as unique (`:db.unique/identity` or
   `:db.unique/value`).
+
+  `parsers-desc` can be used to specify parsers, with both map- and vector-valued specifications
+  supported. Please see test namespace `tablehike.parser-test` for usage examples pending a
+  detailed description here.
 
   `schema-spec` can be used to specify schema fully or partially for attributes introduced by
   `filename`. It may be:
@@ -132,32 +138,45 @@
   type is inferred if omitted.
 
   Lastly, `options` supports the following keys:
-  - `:batch-size`: the number of rows to read and transact per batch (default 128,000)
-  - `:num-rows`: the number of rows in the CSV file
-  - `:parser-fn`: a map specifying custom parsers, with key-value pairs of keywordized column name
-  or index to `[dtype parser-fn]` tuple, with `dtype` being the appropriate key from in
-  `tablehike.parse.parser/default-coercer`"
-  ([filename conn]
-   (load-csv filename conn {} {}))
-  ([filename conn schema-spec]
-   (load-csv filename conn schema-spec {}))
-  ([filename conn schema-spec options]
-   (let [parsers (parser/csv->parsers filename options)
+  - `:batch-size`: The number of rows to read and transact per batch (default `128,000`).
+  - `:num-rows`: The number of rows in the CSV file.
+  - `:separator`: Separator character for CSV row entries. Defaults to `,`.
+  - `:parser-sample-size`: Number of rows to sample for type (parser) inference.
+  - `:vector-delims-use`: Whether vector-valued entries are delimited, e.g. by square brackets (`[]`).
+  Defaults to `true`.
+  - `:vector-open-char`: Left delimiter for vector values, only applicable if `:vector-delims-use` is `true`.
+  Default: `[`.
+  - `:vector-close-char`: Right delimiter for vector values, only applicable if `:vector-delims-use` is `true`.
+  Default: `]`.
+  - `:vector-separator`: Separator character for elements in vector-valued entries, analogous to `:separator`
+  (default `,`) for CSV row entries. Defaults to the same value as that of `:separator`.
+  - `:include-cols`: Description TBD.
+  - `:idx->colname`: Ditto.
+  - `:colname->ident`: Ditto."
+  ([filename conn parsers-desc schema-desc options]
+   (let [colname->ident (parser/colname->ident-fn options)
+         parsers (mapv (fn [p]
+                         (update (->> (colname->ident (:column-name p))
+                                      (assoc p :column-ident))
+                                 :parser-dtype
+                                 #(if (contains? dt/datetime-datatypes %)
+                                    :db.type/instant
+                                    %)))
+                       (parser/infer-parsers filename parsers-desc options))
          schema (schema/build-schema
                  parsers
-                 schema-spec
+                 schema-desc
                  (d/schema @conn)
                  (d/reverse-schema @conn)
                  (csv-read/csv->header-skipped-row-iter filename options)
                  options)
          csv-row->entity-map (csv-row->entity-map-parser (map :db/ident schema)
                                                          parsers
-                                                         schema-spec
+                                                         schema-desc
                                                          options)
          row-iter (csv-read/csv->header-skipped-row-iter filename options)
          num-rows (long (get options :batch-size
-                             (get options :n-records
-                                  (get options :num-rows 128000))))]
+                             (get options :num-rows 128000)))]
      ; TODO: fix "Could check for overlap with any existing schema, but I don't read minds"
      (d/transact conn schema)
      (loop [continue? (.hasNext row-iter)]
@@ -166,68 +185,22 @@
                                   (conj! v (csv-row->entity-map row)))
                                 (reduce (transient [])
                                         (TakeReducer. row-iter num-rows))
-                                persistent!)}
+                               persistent!)}
                   (d/transact conn))
              (recur (.hasNext row-iter)))
-         @conn)))))
+         @conn))))
+  ([filename conn parsers-desc schema-desc]
+   (load-csv filename conn parsers-desc schema-desc {}))
+  ([filename conn parsers-desc]
+   (load-csv filename conn parsers-desc {} {}))
+  ([filename conn]
+   (load-csv filename conn {} {} {})))
 
 
-(comment
-  (require '[clojure.java.io :as io]
-           '[clojure.string :as string]
-           '[charred.api :as charred]
-           '[clojure.java.shell :as sh]
-           '[datahike.api :as d]
-           '[tablehike.core :as tbh])
-
-
-  ; TODO test with regular (vector of maps) schema spec
-
-  (def cfg (d/create-database {}))
-  (def conn (d/connect cfg))
-  (d/delete-database cfg)
-
-  (def pokemon-file "test/data/pokemon.csv")
-  (load-csv pokemon-file conn)
-  (count (d/datoms @conn :eavt))
-  (:abilities (d/entity @conn 50))
-  (count (d/schema @conn))
-  (->> (d/q '[:find ?n ?a
-              :where [?e :japanese_name ?n]
-              [?e :abilities ?a]]
-            @conn)
-       (reduce (fn [m [n a]]
-                 (if (some? (get m n))
-                   (update m n inc)
-                   (assoc m n 1)))
-               {}))
-  (d/delete-database cfg)
-
-  (def dial-311-file "test/data/311_service_requests_2010-present_sample.csv")
-  (def db (load-csv dial-311-file
-                    conn
-                    {}
-                    {:vector-open \(
-                     :vector-close \)
-                     :schema-sample-size 1280000
-                     :parser-sample-size 1280000}))
-                      ;:parser-fn {40 [:vector
-                      ;                (fn [v]
-                      ;                  (let [len (.length ^String v)
-                      ;                        re (re-pattern ", ")]
-                      ;                    (mapv (get parser/default-coercers :float32)
-                      ;                          (-> (subs v 1 (dec len))
-                      ;                              (str/split re)))))]}}
-
-
-(def cfg (d/create-database {:backend :file
-                                   :path "test/databases/vbb-db"}))
-(def conn (d/connect cfg))
-(def data-dir "/Users/yiffle/programming/code/vbb-gtfs/data")
-(def latest-db (tbh/load-csv (io/file data-dir "agencies.csv") conn))
-(def latest-db (tbh/load-csv (io/file data-dir "routes.csv") conn))
-(def latest-db (tbh/load-csv (io/file data-dir "trips.csv")
-                             conn
-                             {}
-                             {:parser-sample-size 242608}))
-  )
+(defn infer-parsers
+  ([filename parsers-desc options]
+   (parser/infer-parsers filename parsers-desc options))
+  ([filename parsers-desc]
+   (infer-parsers filename parsers-desc {}))
+  ([filename]
+   (infer-parsers filename {} {})))
