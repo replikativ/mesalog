@@ -102,6 +102,9 @@ workflows:
           context: dockerhub-deploy
           requires:
             - build
+          post-steps:
+            - store_test_results:
+                path: test-results
       - deploy:
           context:
             - dockerhub-deploy
