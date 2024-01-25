@@ -20,9 +20,9 @@
 
 (deftest empty-file
   (testing "parser inference on empty input CSV"
-    (is (= (-> (parser/infer-parsers (io/file data-folder "empty.csv"))
-               count
-               (= 0))))))
+    (is (-> (parser/infer-parsers (io/file data-folder "empty.csv"))
+            count
+            (= 0)))))
 
 
 (deftest long-and-string-inference

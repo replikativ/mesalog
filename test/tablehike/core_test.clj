@@ -107,16 +107,17 @@
     (let [parsers (parser/infer-parsers agencies-file
                                         {}
                                         {:parser-sample-size 20})
-          nonnull-attrs (->> (filter :parser-fn parsers)
+          nonnull-attrs (->> (filter :parse-fn parsers)
                              (map :column-name))
           ds-cols (-> (tc/dataset agencies-file)
                       (tc/select-rows (range 20))
                       tc/columns)]
-      (= (filter-ds-col-names #(every? nil? %) ds-cols)
-         (s/difference (set (map :column-name parsers))
-                       nonnull-attrs))
-      (= (filter-ds-col-names #(not-every? nil? %) ds-cols)
-         nonnull-attrs))))
+      (is (= (set (filter-ds-col-names #(every? nil? %)
+                                       ds-cols))
+             (s/difference (set (map :column-name parsers))
+                           nonnull-attrs)))
+      (is (= (filter-ds-col-names #(not-every? nil? %) ds-cols)
+             nonnull-attrs)))))
 
 
 (deftest boolean-value-types
