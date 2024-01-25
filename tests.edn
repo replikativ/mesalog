@@ -1,3 +1,5 @@
 #kaocha/v1 {:tests [{:id :clj
                      :ns-patterns ["tablehike.*-test"]}]
+            :plugins [:kaocha.plugin/junit-xml]
+            :kaocha.plugin.junit-xml/target-file "junit.xml"
             :reporter kaocha.report/documentation}

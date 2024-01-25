@@ -67,6 +67,21 @@ jobs:
             - .m2
             - .npm
             - replikativ
+  test:
+    executor: tools/clojurecli
+    steps:
+      - attach_workspace:
+          at: /home/circleci
+      - run:
+          command: bin/kaocha
+          name: Run tests
+          no_output_timeout: 5m
+      - store_test_results:
+          path: junit.xml
+      - save_cache:
+          key: deps-{{ checksum "deps.edn" }}
+          paths:
+            - /home/circleci/.m2
   deploy:
     executor: tools/clojurecli
     steps:
@@ -98,13 +113,10 @@ workflows:
           context: dockerhub-deploy
           requires:
             - setup
-      - tools/unittest:
+      - test:
           context: dockerhub-deploy
           requires:
             - build
-          post-steps:
-            - store_test_results:
-                path: test-results
       - deploy:
           context:
             - dockerhub-deploy
@@ -115,7 +127,7 @@ workflows:
               only: main
           requires:
             - tools/format
-            - tools/unittest
+            - test
       - release:
           context:
             - dockerhub-deploy
