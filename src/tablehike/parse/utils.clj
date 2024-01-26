@@ -1,5 +1,6 @@
 (ns tablehike.parse.utils
   (:require [charred.api :as charred]
+            [tablehike.parse.datetime :as dt]
             [tech.v3.datatype :as dtype]))
 
 
@@ -46,6 +47,24 @@
            idents)))
   ([idents parsers tuples]
    (map-idents->indices idents parsers tuples nil)))
+
+
+(defn tech-v3->datahike-dtypes [dt]
+  (cond
+    (identical? :float32 dt) :db.type/float
+    (identical? :float64 dt) :db.type/double
+    (contains? #{:int16 :int32 :int64} dt) :db.type/long
+    (identical? :string dt) :db.type/string
+    (identical? :bool dt) :db.type/boolean
+    ; Could be in the `:else`, but datetimes seem common enough to warrant this spot
+    (or (contains? dt/datetime-datatypes dt)
+        (identical? :db.type/instant dt)) dt
+    (contains? #{:uuid :keyword :symbol} dt) (keyword "db.type" (name dt))
+    (identical? :big-integer dt) :db.type/bigint
+    (identical? :decimal dt) :db.type/bigdec
+    ; Refs and anything else supported but somehow not caught above.
+    ; Where applicable, error can be thrown downstream on parse failure.
+    :else dt))
 
 
 (defn- strip-vector-str-delims-fn [options]

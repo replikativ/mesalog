@@ -108,24 +108,6 @@
   (.dataIntoMap p))
 
 
-(defn tech-v3->datahike-dtypes [dt]
-  (cond
-    (identical? :float32 dt) :db.type/float
-    (identical? :float64 dt) :db.type/double
-    (contains? #{:int16 :int32 :int64} dt) :db.type/long
-    (identical? :string dt) :db.type/string
-    (identical? :bool dt) :db.type/boolean
-    ; Could be in the `:else`, but datetimes seem common enough to warrant this spot
-    (or (contains? dt/datetime-datatypes dt)
-        (identical? :db.type/instant dt)) dt
-    (contains? #{:uuid :keyword :symbol} dt) (keyword "db.type" (name dt))
-    (identical? :big-integer dt) :db.type/bigint
-    (identical? :decimal dt) :db.type/bigdec
-    ; Refs and anything else supported but somehow not caught above.
-    ; Where applicable, error can be thrown downstream on parse failure.
-    :else dt))
-
-
 (defn- parser-data-into-map
   ([col-idx col-name parser-dtype parse-fn missing-indexes failed-indexes failed-values]
    (cond-> {:column-idx col-idx
@@ -168,7 +150,7 @@
       (csv-read/missing-value? value)
       (.add missing-indexes (unchecked-int idx))
       (or (string? value)
-          (-> (tech-v3->datahike-dtypes (utils/fast-dtype value))
+          (-> (utils/tech-v3->datahike-dtypes (utils/fast-dtype value))
               (identical? parser-dtype)
               not))
       (when (identical? parse-failure (parse-fn value))
@@ -224,7 +206,7 @@
                 (set! parse-fn first-parse-fn))))
         (cond
           (and (not (-> (utils/fast-dtype value)
-                        tech-v3->datahike-dtypes
+                        utils/tech-v3->datahike-dtypes
                         (identical? parser-dtype)))
                parse-fn)
           (when (identical? parse-failure

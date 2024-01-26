@@ -6,6 +6,7 @@
             [datahike.api :as d]
             [tablehike.core :refer :all]
             [tablehike.parse.parser :as parser]
+            [tablehike.parse.utils :as utils]
             [tablecloth.api :as tc]
             [tech.v3.datatype.datetime :as dtype-dt])
   (:import [java.util UUID]
@@ -137,7 +138,7 @@
   (into {}
         (map (fn [row]
                [(:col-name row)
-                (parser/tech-v3->datahike-dtypes (:datatype row))]))
+                (utils/tech-v3->datahike-dtypes (:datatype row))]))
         (tc/rows (tc/info ds) :as-maps)))
 
 
