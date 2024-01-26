@@ -14,8 +14,8 @@
 
 
 ;;Assuming that the string will have /,-. replaced with /space
-(def ^{:doc "Local date parser patterns used to generate the local date
-formatter."} local-date-parser-patterns
+(def ^{:doc "Local date parser patterns used to generate the local date formatter."}
+  local-date-parser-patterns
   ["yyyy MM dd"
    "yyyyMMdd"
    "MM dd yyyy"
