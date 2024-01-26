@@ -156,9 +156,12 @@
   ([filename conn parsers-desc schema-desc options]
    (let [colname->ident (parser/colname->ident-fn options)
          parsers (mapv (fn [p]
+                         ;; TODO revisit: stopgap in lieu of proper interface
+                         ;; between DB attr idents and col names
                          (update (->> (colname->ident (:column-name p))
                                       (assoc p :column-ident))
                                  :parser-dtype
+                                 ;; TODO revisit when developing better parser-schema iface
                                  #(if (contains? dt/datetime-datatypes %)
                                     :db.type/instant
                                     %)))

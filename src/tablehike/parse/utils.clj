@@ -26,6 +26,7 @@
        (apply = v)))
 
 
+;; TODO revisit: stopgap in lieu of proper interface between DB attr idents and col names
 (defn map-col-idents->indices [parsers]
   (into {}
         (map (fn [{:keys [column-idx column-ident]}]
@@ -33,6 +34,7 @@
         parsers))
 
 
+;; TODO revisit: stopgap in lieu of proper interface between DB attr idents and col names
 (defn map-idents->indices
   ([idents parsers tuples composite-tuples]
    (let [col-ident->index (map-col-idents->indices parsers)
