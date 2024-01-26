@@ -188,6 +188,7 @@
                            {:a 1 :b nil}
                            {:a 2 :b (create-dt-fn)}])
               (tc/write! fname))
+          (println (tc/dataset fname))
           (->> (if (some? dt-type)
                  {"b" dt-type}
                  {})
