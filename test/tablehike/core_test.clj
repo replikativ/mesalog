@@ -189,9 +189,9 @@
                            {:a 2 :b (create-dt-fn)}])
               (tc/write! fname))
           (->> (if (some? dt-type)
-                 {:parser-fn {:b dt-type}}
+                 {"b" dt-type}
                  {})
-               (load-csv fname test-conn {}))
+               (load-csv fname test-conn))
           (is (-> (:b (d/schema @test-conn))
                   :db/valueType
                   (= :db.type/instant)))
