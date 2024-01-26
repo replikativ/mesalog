@@ -25,7 +25,8 @@
                                                        missing
                                                        dval))
                                                    (double %)))]
-    (into dt/datatype->general-parse-fn-map
+    (into (update-vals dt/datatype->general-parse-fn-map
+                       utils/make-safe-parse-fn)
           #:db.type{:instant (-> (dt/datetime->date-parse-fn dt/instant-parse-fn)
                                  utils/make-safe-parse-fn)
                     :boolean #(if (string? %)

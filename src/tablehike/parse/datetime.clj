@@ -1,7 +1,6 @@
 ; TODO replace first and second with more performant equivalents
 (ns tablehike.parse.datetime
-  (:require [clojure.string :as s]
-            [tablehike.parse.utils :as utils])
+  (:require [clojure.string :as s])
   (:import [java.time Instant LocalDate LocalDateTime LocalTime OffsetDateTime ZonedDateTime ZoneId]
            [java.time.format DateTimeFormatter DateTimeFormatterBuilder]
            [java.util Date Locale]))
@@ -135,8 +134,7 @@ parse a wide variety of local date formats."
   datatype->general-parse-fn-map
   (into {}
         (map (fn [[k v]]
-               [k (-> (datetime->date-parse-fn v)
-                      utils/make-safe-parse-fn)]))
+               [k (datetime->date-parse-fn v)]))
         {:local-date #(if (string? %)
                         (parse-local-date %)
                         (LocalDate/from %))
