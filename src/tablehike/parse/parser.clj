@@ -417,6 +417,15 @@
             (promotional-string-parser col-idx col-name)))))))
 
 
+(defn- sample-size [options]
+  (let [num-rows (:num-rows options)
+        parser-sample-size (:parser-sample-size options)]
+    (if (and (some? num-rows)
+             (some? parser-sample-size))
+      (min num-rows parser-sample-size)
+      (or num-rows parser-sample-size 12800))))
+
+
 (defn- iter->parsers
   ^ObjectArrayList [header-row ^Iterator row-iter parsers-spec options]
   (let [parsers (parser-array-list)
@@ -432,7 +441,7 @@
                      nil
                      row))
             nil
-            (TakeReducer. row-iter (:parser-sample-size options)))
+            (TakeReducer. row-iter (sample-size options)))
     parsers))
 
 
@@ -470,7 +479,7 @@
                       nil
                       row))
             nil
-            (TakeReducer. row-iter (:parser-sample-size options)))
+            (TakeReducer. row-iter (sample-size options)))
     vector-parsers))
 
 
@@ -482,8 +491,7 @@
 
 (defn infer-parsers
   ([input parsers-spec options]
-   (let [options (update options :parser-sample-size #(or % 12800))
-         parsers (csv->parsers input parsers-spec options)]
+   (let [parsers (csv->parsers input parsers-spec options)]
      (->> (csv->vector-parsers parsers input options)
           (mapv (fn [p vp]
                   (when-some [parser (or vp p)]

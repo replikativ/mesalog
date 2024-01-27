@@ -76,13 +76,23 @@
            (finally (.delete test-file))))))
 
 
-(deftest parser-sample-size
-  (testing "`:parser-sample-size` option is applied as expected"
-    (is (every? #(= (:parser-dtype %) :db.type/boolean)
-                (-> (parser/infer-parsers (io/file booleans-file)
-                                          {}
-                                          {:parser-sample-size 6})
-                    (subvec 1))))))
+(deftest parser-sample-size-and-num-rows
+  (let [test-fn (fn [opts]
+                  (is (every? #(= (:parser-dtype %) :db.type/boolean)
+                              (-> (parser/infer-parsers (io/file booleans-file)
+                                                        {}
+                                                        opts)
+                                  (subvec 1 3)))))]
+  (testing "`:parser-sample-size` option has the expected effect when `:num-rows` is unspecified"
+    (test-fn {:parser-sample-size 6}))
+  (testing "`:parser-sample-size` option has the expected effect when specified `:num-rows` is lower"
+    (test-fn {:parser-sample-size 12
+              :num-rows 6}))
+  (testing "`:parser-sample-size` option has the expected effect when specified `:num-rows` is higher"
+    (test-fn {:parser-sample-size 6
+              :num-rows 12}))
+  (testing "`:num-rows` option has the expected effect when `:parser-sample-size` unspecified"
+    (test-fn {:num-rows 6}))))
 
 
 (deftest col-types-specified
