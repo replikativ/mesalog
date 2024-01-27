@@ -178,19 +178,32 @@
                                                          schema-desc
                                                          options)
          row-iter (csv-read/csv->header-skipped-row-iter filename options)
-         num-rows (long (get options :batch-size
-                             (get options :num-rows 128000)))]
+         num-rows (when-some [num-rows (get options :num-rows)]
+                    (when (and (number? num-rows)
+                               (>= num-rows 0))
+                      (long num-rows)))
+         batch-size (let [batch-size (long (get options :batch-size 128000))]
+                      (if num-rows
+                        (min batch-size num-rows)
+                        batch-size))]
      ; TODO: fix "Could check for overlap with any existing schema, but I don't read minds"
      (d/transact conn schema)
-     (loop [continue? (.hasNext row-iter)]
-       (if continue?
+     (loop [continue? (.hasNext row-iter)
+            rows-loaded 0
+            rows-left num-rows]
+       (if (and continue?
+                (or (nil? rows-left)
+                    (> rows-left 0)))
          (do (->> {:tx-data (-> (fn [v row]
                                   (conj! v (csv-row->entity-map row)))
                                 (reduce (transient [])
-                                        (TakeReducer. row-iter num-rows))
+                                        (TakeReducer. row-iter batch-size))
                                persistent!)}
                   (d/transact conn))
-             (recur (.hasNext row-iter)))
+             (recur (.hasNext row-iter)
+                    (unchecked-add rows-loaded batch-size)
+                    (when rows-left
+                      (unchecked-subtract rows-left batch-size))))
          @conn))))
   ([filename conn parsers-desc schema-desc]
    (load-csv filename conn parsers-desc schema-desc {}))

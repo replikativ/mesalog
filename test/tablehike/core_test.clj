@@ -37,6 +37,36 @@
 
 ; Questionable or nonsensical schema designs sometimes used for testing purposes only
 
+(defn- test-num-rows
+  ([num-rows batch-size]
+   (let [options (cond-> {:num-rows num-rows}
+                   (some? batch-size) (merge {:batch-size batch-size}))
+         colname->ident (parser/colname->ident-fn options)
+         id-ident (colname->ident "agency/id")]
+     (load-csv agencies-file test-conn {} {} options)
+     (is (-> (filter #(= (:a %) id-ident)
+                     (d/datoms @test-conn :eavt))
+             count
+             (= num-rows)))))
+  ([num-rows]
+   (test-num-rows num-rows nil)))
+
+
+(deftest num-rows-option
+  (testing "`:num-rows` option works when `:batch-size` unspecified"
+    (test-num-rows 10)))
+
+
+(deftest num-rows-option-with-lower-batch-size
+  (testing "`:num-rows` option works when specified `:batch-size` is lower"
+    (test-num-rows 10 5)))
+
+
+(deftest num-rows-option-with-higher-batch-size
+  (testing "`:num-rows` option works when specified `:batch-size` is lower"
+    (test-num-rows 10 20)))
+
+
 (deftest empty-input
   (testing "empty CSV file"
     (is (-> (io/file data-folder "empty.csv")
