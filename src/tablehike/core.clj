@@ -166,16 +166,23 @@
                                     :db.type/instant
                                     %)))
                        (parser/infer-parsers filename parsers-desc options))
-         schema (schema/build-schema
-                 parsers
-                 schema-desc
-                 (d/schema @conn)
-                 (d/reverse-schema @conn)
-                 (csv-read/csv->header-skipped-row-iter filename options)
-                 options)
-         csv-row->entity-map (csv-row->entity-map-parser (map :db/ident schema)
+         ;; TODO take into account in `parser` namespace (drop dtype requirement from parser descriptions)
+         schema-on-read (= (:schema-flexibility (:config @conn))
+                           :read)
+         schema (when (not schema-on-read)
+                  (schema/build-schema
+                   parsers
+                   schema-desc
+                   (d/schema @conn)
+                   (d/reverse-schema @conn)
+                   (csv-read/csv->header-skipped-row-iter filename options)
+                   options))
+         csv-row->entity-map (csv-row->entity-map-parser (if schema-on-read
+                                                           (map :column-ident parsers)
+                                                           (map :db/ident schema))
                                                          parsers
-                                                         schema-desc
+                                                         (when (not schema-on-read)
+                                                           schema-desc)
                                                          options)
          row-iter (csv-read/csv->header-skipped-row-iter filename options)
          num-rows (when-some [num-rows (get options :num-rows)]
@@ -187,7 +194,8 @@
                         (min batch-size num-rows)
                         batch-size))]
      ; TODO: fix "Could check for overlap with any existing schema, but I don't read minds"
-     (d/transact conn schema)
+     (when (not schema-on-read)
+       (d/transact conn schema))
      (loop [continue? (.hasNext row-iter)
             rows-loaded 0
             rows-left num-rows]
