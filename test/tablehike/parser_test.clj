@@ -66,7 +66,7 @@
       (-> {:uuids (repeatedly 5 #(UUID/randomUUID))}
           tc/dataset
           (tc/write! test-fname))
-      (try (let [parsers (parser/infer-parsers (io/file test-fname))
+      (try (let [parsers (parser/infer-parsers test-file)
                  parser (first parsers)]
              (is (= (count parsers) 1))
              (is (= (:column-name parser) "uuids"))
