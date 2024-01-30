@@ -78,6 +78,11 @@
                                (str %))})))
 
 
+(def supported-dtypes
+  (clj-set/union (set (keys default-coercers))
+                 #{:db.type/bigdec :db.type/ref :db.type/tuple}))
+
+
 (deftype ObjectArrayList [^{:unsynchronized-mutable true
                             :tag 'objects} data]
   ObjectBuffer
@@ -125,9 +130,7 @@
   (let [[dtype parse-fn] (if (vector? parser-descriptor)
                            parser-descriptor
                            [parser-descriptor])]
-    (when-not ((clj-set/union (set (keys default-coercers))
-                              #{:db.type/bigdec :db.type/ref :db.type/tuple})
-               dtype)
+    (when-not (supported-dtypes dtype)
       (throw (IllegalArgumentException.
               (format "Unrecognized data type: %s" dtype))))
     [dtype
