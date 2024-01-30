@@ -36,7 +36,7 @@
                               (let [vector-val-cols (into #{}
                                                           (comp (remove #(= (:parser-dtype %)
                                                                             :vector))
-                                                                (map :column-name))
+                                                                (map :column-ident))
                                                           parsers)]
                                 (into {}
                                       (comp (map (fn [[a rid]]
