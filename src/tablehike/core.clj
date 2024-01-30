@@ -76,19 +76,17 @@
 
   *Please note that the functionality (API and implementation) documented here, in particular
   aspects related to schema specification/inference and its interface with parser specification/inference,
-  is still evolving and will undergo changes, possibly major, in the future.*
+  is still evolving and will undergo changes, possibly breaking, in the future.*
 
-  Each column represents an attribute, with keywordized column name as attribute ident, or
+  Each column represents an attribute, with keywordized column name as default attribute ident, or
   otherwise, an element in a tuple. Type and cardinality are automatically inferred, though they
   sometimes require specification; in particular, cardinality many is well-defined and can only
   be inferred in the presence of a separate attribute marked as unique (`:db.unique/identity` or
   `:db.unique/value`).
 
-  `parsers-desc` can be used to specify parsers, with both map- and vector-valued specifications
-  supported. Please see test namespace `tablehike.parser-test` for usage examples pending a
-  detailed description here.
+  Please see the docstring for `infer-parsers` for detailed information on `parsers-desc`.
 
-  `schema-spec` can be used to specify schema fully or partially for attributes introduced by
+  `schema-desc` can be used to specify schema fully or partially for attributes introduced by
   `filename`. It may be:
 
   1. A map, for partial specification: using schema attributes or schema attribute values as keys,
@@ -151,9 +149,14 @@
   Default: `]`.
   - `:vector-separator`: Separator character for elements in vector-valued entries, analogous to `:separator`
   (default `,`) for CSV row entries. Defaults to the same value as that of `:separator`.
-  - `:include-cols`: Description TBD.
-  - `:idx->colname`: Ditto.
-  - `:colname->ident`: Ditto."
+  - `:include-cols`: Predicate for whether a column should be included in the data load. Columns can be
+  specified using valid index values, strings, or keywords. Example: `#{1 2 3}`.
+  - `:idx->colname`: Function taking the 0-based index of a column and returning name. Defaults to the
+  value at the same index of the column header if present, otherwise `(str \"column-\" idx)`.
+  - `:colname->ident`: Function taking the name of a column and returning a keyword, based on the convention of each
+  column representing an attribute, and keywordized column name as default attribute ident. The returned value is assumed
+  to be the corresponding ident for each column representing an attribute, though it can also apply to columns for which
+  that is not the case. Defaults to the keywordized column name, with consecutive spaces replaced by a single hyphen."
   ([filename conn parsers-desc schema-desc options]
    (let [colname->ident (parser/colname->ident-fn options)
          parsers (mapv (fn [p]
@@ -248,6 +251,32 @@
 
 
 (defn infer-parsers
+  "`parsers-desc` can be used to specify parsers, with the description for each column containing its
+  data type(s) as well as parser function(s).
+
+  For a scalar-valued column, this takes the form ~[dtype fn]~, which can (currently) be specified in
+  one of these two ways:
+  - A default data type, say ~d~, as shorthand for ~[d (d tablehike.parse.parser/default-coercers)]~,
+  with the 2nd element being its corresponding default parser function. The value of ~d~ must come from
+  `(keys tablehike.parse.parser/default-coercers)`.
+  - In full, as a two-element tuple of type and (custom) parser, e.g.
+  `[:db.type/long #(long (Float/parseFloat %))]`.
+
+  For a vector-valued column (whatever the ~:db/valueType~ of its corresponding attribute, if any), the
+  following forms are possible:
+  - ~[dtype parse-fn]~ (not supported for tuples)
+  - ~[[dt1 dt2 ...]]~, if ~dt1~ etc. are all data types having default parsers
+  - ~[[dt1 dt2 ...] [pfn1 pfn2 ...]]~, to specify custom parser functions.
+
+  `parsers-desc` can be specified as:
+  - A map with each element consisting of the following:
+    - Key: a valid column identifier (see above)
+    - Value: a parser description taking the form described above.
+  - A vector specifying parsers for consecutive columns, starting from the 1st (though not necessarily ending
+  at the last), with each element again being a parser description taking the form above, just like one given
+  as a map value.
+
+  Please see test namespace `tablehike.parser-test` for usage examples."
   ([filename parsers-desc options]
    (parser/infer-parsers filename parsers-desc options))
   ([filename parsers-desc]
