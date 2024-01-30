@@ -121,8 +121,8 @@
               :stop/location-type :db.type/long}))))
 
 
-(deftest types-specified-in-vector
-  (testing "column parsers/types specified in a vector are applied"
+(deftest types-and-parsers-specified-in-vector
+  (testing "column types specified in a vector are applied"
     (let [types [:db.type/long
                  :db.type/float
                  :db.type/float
@@ -130,7 +130,17 @@
           parsers (parser/infer-parsers shapes-file types)]
     (doseq [i (range (count types))]
       (is (= (:parser-dtype (nth parsers i))
-             (nth types i)))))))
+             (nth types i))))))
+  (testing "column types and custom parsers specified in a vector are applied"
+    (let [parse-fn #(-> (.setScale (bigdec %) 3 java.math.RoundingMode/HALF_EVEN)
+                        float)
+          dtype-parser [:db.type/float parse-fn]
+          types [:db.type/long dtype-parser dtype-parser :db.type/bigint]
+          parsers (parser/infer-parsers shapes-file types)]
+      (doseq [i [1 2]]
+        (is (= ((:parse-fn (nth parsers i))
+                13.631534)
+               (float (bigdec 13.632))))))))
 
 
 (deftest specified-dtype-and-fn-used
