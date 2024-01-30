@@ -1,40 +1,54 @@
 
 # Table of Contents
 
-1.  [tablehike](#orgcab8286)
-    1.  [TL;DR](#orgf3d1008)
-    2.  [Quickstart](#org7c68cc4)
-    3.  [Columns and attributes](#org8fdfcc7)
-    4.  [Column identifiers](#orge78d897)
-    5.  [Including and excluding columns](#orgc1c3782)
-    6.  [Supported column data types](#org0103f90)
-    7.  [Parsers vs. schema](#orgb1cd4b4)
-    8.  [Parser descriptions](#org5bbaf3c)
-    9.  [Schema description](#orgfc1db51)
-    10. [Schema-on-read](#org330a9bb)
-    11. [Cardinality inference](#orga1b1665)
-    12. [Attributes already in schema](#orgfb02ee4)
-    13. [Reference-type attributes (with `:db/valueType` `:db.type/ref`)](#org4f05340)
-    14. [Vector-valued columns](#orgeccc6f6)
-    15. [Tuples](#orga99675e)
-    16. [Options](#org07db909)
-    17. [Current limitations](#org1a3ef1d)
-    18. [License](#org6ac0f90)
+1.  [tablehike](#orgdaa7b16)
+    1.  [TL;DR](#org7b4eb25)
+        1.  [Fast](#org391552d)
+    2.  [Quickstart](#org91bf559)
+    3.  [Columns and attributes](#orgc39df90)
+    4.  [Column identifiers](#org2ef1b0a)
+    5.  [Including and excluding columns](#orgbb9ef79)
+    6.  [Supported column data types](#org6bf3e05)
+    7.  [Parsers vs. schema](#org22f4b5f)
+    8.  [Parser descriptions](#orgd429f52)
+    9.  [Schema description](#org11475c8)
+    10. [Schema-on-read](#orgbc9511e)
+    11. [Cardinality inference](#org9e44672)
+    12. [Attributes already in schema](#org113855d)
+    13. [Reference-type attributes (with `:db/valueType` `:db.type/ref`)](#orgacf42e7)
+    14. [Vector-valued columns](#org86fce9a)
+    15. [Tuples](#org116dd1a)
+    16. [Options](#orge6187b4)
+    17. [Current limitations](#org197ae1d)
+    18. [License](#org3087e08)
 
 
-<a id="orgcab8286"></a>
+<a id="orgdaa7b16"></a>
 
 # tablehike
 
-Loads CSV data into Datalog databases with a single function call. Handles arbitrarily large files and offers both automatic inference and user specification of parsers (types) and schema as well as cardinality.
+Loads CSV data into Datalog databases with a single function call.
 
 
-<a id="orgf3d1008"></a>
+<a id="org7b4eb25"></a>
 
 ## TL;DR
 
 
-<a id="org7c68cc4"></a>
+<a id="org391552d"></a>
+
+### TODO Fast
+
+-   Handles arbitrarily large files
+-   Offers both automatic inference and user specification of
+    -   Parsers (types)
+    -   Schema
+    -   Cardinality
+-   Automatic vector value detection and parsing
+-   Fast: figures TBA
+
+
+<a id="org91bf559"></a>
 
 ## Quickstart
 
@@ -110,7 +124,7 @@ Loads CSV data into Datalog databases with a single function call. Handles arbit
 Reads, parses, and loads data from `data.csv` into a Datahike database via connection `conn`. The remaining arguments are optional: parser descriptions, schema description, and options for other relevant specifications.
 
 
-<a id="org8fdfcc7"></a>
+<a id="orgc39df90"></a>
 
 ## Columns and attributes
 
@@ -120,7 +134,7 @@ Each column represents either of the following:
 2.  An element in a heterogeneous or homogeneous tuple.
 
 
-<a id="orge78d897"></a>
+<a id="org2ef1b0a"></a>
 
 ## Column identifiers
 
@@ -133,14 +147,14 @@ Columns can be identified by (nonnegative, 0-based) index, name (string-valued),
 All three forms of identifier are supported in parser descriptions and the `:include-cols` option. Unfortunately, that isn&rsquo;t yet the case for the schema description; apologies.
 
 
-<a id="orgc1c3782"></a>
+<a id="orgbb9ef79"></a>
 
 ## Including and excluding columns
 
 By default, data from all columns are loaded. If not, whether a column should be included or excluded can be specified via a predicate in the `:include-cols` option.
 
 
-<a id="org0103f90"></a>
+<a id="org6bf3e05"></a>
 
 ## Supported column data types
 
@@ -167,7 +181,7 @@ By default, data from all columns are loaded. If not, whether a column should be
       :local-date}
 
 
-<a id="orgb1cd4b4"></a>
+<a id="org22f4b5f"></a>
 
 ## Parsers vs. schema
 
@@ -177,7 +191,7 @@ By default, data from all columns are loaded. If not, whether a column should be
 Note that some databases (including Datahike) support both *schema-on-read* (no explicitly defined data model) and *schema-on-write* (the default, described above). The schema description (4th) argument to `load-csv` is only relevant with schema-on-write, and irrelevant to schema-on-read.
 
 
-<a id="org5bbaf3c"></a>
+<a id="orgd429f52"></a>
 
 ## Parser descriptions
 
@@ -221,10 +235,10 @@ Parser descriptions can be specified as:
     -   Value: a parser description taking the form described above.
 -   A vector specifying parsers for consecutive columns, starting from the 1st (though not necessarily ending at the last), with each element again being a parser description taking the form above, just like one given as a map value.
 
-See the section [1.14](#orgeccc6f6) for details on specifying parser descriptions for vector-valued columns.
+See the section [1.14](#org86fce9a) for details on specifying parser descriptions for vector-valued columns.
 
 
-<a id="orgfc1db51"></a>
+<a id="org11475c8"></a>
 
 ## Schema description
 
@@ -253,28 +267,28 @@ The primary form currently supported for providing a schema description is a map
 Please see `load-csv` docstring for further detail.
 
 
-<a id="org330a9bb"></a>
+<a id="orgbc9511e"></a>
 
 ## Schema-on-read
 
-Tablehike supports schema-on-read databases, though not thoroughly, as noted in [1.17](#org1a3ef1d) below.
+Tablehike supports schema-on-read databases, though not thoroughly, as noted in [1.17](#org197ae1d) below.
 
 
-<a id="orga1b1665"></a>
+<a id="org9e44672"></a>
 
 ## Cardinality inference
 
 Note that cardinality many can only be inferred in the presence of a separate attribute marked as unique (`:db.unique/identity` or `:db.unique/value`).
 
 
-<a id="orgfb02ee4"></a>
+<a id="org113855d"></a>
 
 ## Attributes already in schema
 
 Tablehike currently supports loading data for existing attributes, as long as their schema remains the same; unfortunately, it doesn&rsquo;t yet support schema updates even where allowed by the connected database. As stated above, any conflict with the existing schema, whether specified or inferred, will currently result in an error.
 
 
-<a id="org4f05340"></a>
+<a id="orgacf42e7"></a>
 
 ## Reference-type attributes (with `:db/valueType` `:db.type/ref`)
 
@@ -284,7 +298,7 @@ Examples above illustrate one way reference-type attributes can be represented i
 -   Type specification is unnecessary: `{:db.type/ref {:station/parent-station :station/id}}` can be dropped.
 
 
-<a id="orgeccc6f6"></a>
+<a id="org86fce9a"></a>
 
 ## Vector-valued columns
 
@@ -297,7 +311,7 @@ The parser description for a vector-valued column (whatever the `:db/valueType` 
 A shorthand form for homogeneous vectors, e.g. `[[dt] [pfn]]`, `[[dt]]`, or maybe even `[dt]`, isn&rsquo;t yet supported.
 
 
-<a id="orga99675e"></a>
+<a id="org116dd1a"></a>
 
 ## Tuples
 
@@ -308,19 +322,19 @@ Instead of being represented across columns as illustrated above, (homogeneous a
 1.  Its specification as tuple, e.g. `{:db.type/tuple {:abc [:a :b :c]}}`, can be dropped from the schema description.
 2.  Its type and parser may be inferred or specified:
     -   If `:abc` is a homogeneous tuple of uniform length, its type and parser can be automatically inferred.
-    -   The parser description for `"abc"` can take one of the forms described above for [1.14](#orgeccc6f6), except `[dtype parse-fn]` as noted.
+    -   The parser description for `"abc"` can take one of the forms described above for [1.14](#org86fce9a), except `[dtype parse-fn]` as noted.
 
 Note: Type and parser can also be inferred for heterogeneous tuples, but they must have uniform length (regardless of type inference needs).
 
 
-<a id="org07db909"></a>
+<a id="orge6187b4"></a>
 
 ## Options
 
 Supported options: `:batch-size`, `:num-rows`, `:separator`, `:parser-sample-size`, `:include-cols`, and `:header-row?`. See `load-csv` docstring for more, including `:idx->colname`, `:colname->ident`, and vector-related options.
 
 
-<a id="org1a3ef1d"></a>
+<a id="org197ae1d"></a>
 
 ## Current limitations
 
@@ -334,7 +348,7 @@ Many if not most of the remaining major limitations of Tablehike are due to the 
 However, at least one such limitation not attributable to the lacking parser-schema interface exists: currently, only [Datahike](https://datahike.io) (see also [GitHub](https://github.com/replikativ/datahike)) is supported, though that shall be extended to other databases once the API and implementation have matured.
 
 
-<a id="org6ac0f90"></a>
+<a id="org3087e08"></a>
 
 ## License
 
