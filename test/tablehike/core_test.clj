@@ -75,6 +75,23 @@
             (= {})))))
 
 
+(deftest existing-schema-conflict
+  (testing "IllegalArgumentException thrown when existing and specified and/or inferred schemas are inconsistent"
+    (load-csv "data/routes-conflict.csv" test-conn)
+    (is (thrown? IllegalArgumentException
+                 (load-csv "data/routes.csv" test-conn)))))
+
+
+(deftest consistent-existing-schema
+  (testing "Consistent existing schema is subset of latest schema"
+    (load-csv "data/routes-partial.csv" test-conn)
+    (let [old-schema (d/schema @test-conn)
+          old-keys (keys old-schema)]
+      (load-csv "data/routes.csv" test-conn)
+      (is (= (select-keys (d/schema @test-conn) old-keys)
+             old-schema)))))
+
+
 (deftest vector-schema-spec
   (testing "Schema specification as a vector (i.e. the format expected by Datahike)"
     (let [schema-vec [{:db/ident        :shape/id

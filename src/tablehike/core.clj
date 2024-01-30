@@ -1,5 +1,6 @@
 (ns tablehike.core
-  (:require [datahike.api :as d]
+  (:require [clojure.set :as clj-set]
+            [datahike.api :as d]
             [tablehike.parse.parser :as parser]
             [tablehike.parse.utils :as parse-utils]
             [tablehike.parse.datetime :as dt]
@@ -169,14 +170,35 @@
          ;; TODO take into account in `parser` namespace (drop dtype requirement from parser descriptions)
          schema-on-read (= (:schema-flexibility (:config @conn))
                            :read)
+         existing-schema (d/schema @conn)
          schema (when (not schema-on-read)
                   (schema/build-schema
                    parsers
                    schema-desc
-                   (d/schema @conn)
+                   existing-schema
                    (d/reverse-schema @conn)
                    (csv-read/csv->header-skipped-row-iter filename options)
                    options))
+         shared-keys #(clj-set/intersection (set (keys %1))
+                                            (set (keys %2)))
+         schema-map (when (some? schema)
+                      (reduce (fn [m s]
+                                (assoc m (:db/ident s) s))
+                              {}
+                              schema))
+         shared-attrs (when (some? schema)
+                        (shared-keys existing-schema schema-map))
+         _ (doseq [k1 shared-attrs]
+             (let [existing-k1 (get existing-schema k1)
+                   schema-k1 (get schema-map k1)]
+               (doseq [k2 (shared-keys existing-k1 schema-k1)]
+                 (let [old (get existing-k1 k2)
+                       new (get schema-k1 k2)]
+                   (when (not= old new)
+                     (-> "Inconsistency between existing and specified/inferred schema: %s %s"
+                         (format old new)
+                         IllegalArgumentException.
+                         throw))))))
          csv-row->entity-map (csv-row->entity-map-parser (if schema-on-read
                                                            (map :column-ident parsers)
                                                            (map :db/ident schema))
@@ -195,7 +217,11 @@
                         batch-size))]
      ; TODO: fix "Could check for overlap with any existing schema, but I don't read minds"
      (when (not schema-on-read)
-       (d/transact conn schema))
+       (let [keep-attrs (clj-set/difference (set (keys schema-map))
+                                            shared-attrs)]
+         (->> (filter #(contains? keep-attrs (:db/ident %))
+                      schema)
+              (d/transact conn))))
      (loop [continue? (.hasNext row-iter)
             rows-loaded 0
             rows-left num-rows]
