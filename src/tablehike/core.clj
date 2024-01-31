@@ -218,7 +218,6 @@
                       (if num-rows
                         (min batch-size num-rows)
                         batch-size))]
-     ; TODO: fix "Could check for overlap with any existing schema, but I don't read minds"
      (when (not schema-on-read)
        (let [keep-attrs (clj-set/difference (set (keys schema-map))
                                             shared-attrs)]
