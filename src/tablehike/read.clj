@@ -1,9 +1,10 @@
 (ns ^:no-doc tablehike.read
   (:require [charred.api :as charred]
             [charred.coerce :as coerce]
-            [tech.v3.dataset.io :as ds-io]
+            [tech.v3.io :as io]
             [tech.v3.parallel.for :as pfor])
   (:import [clojure.lang IReduceInit]
+           [java.io Reader]
            [java.util Iterator]
            [ham_fisted Casts]))
 
@@ -25,8 +26,15 @@
             acc))))))
 
 
+(defn- input-stream-or-reader
+  [input-data]
+  (if (instance? Reader input-data)
+    input-data
+    (io/input-stream input-data)))
+
+
 (defn csv->row-iter [input options]
-  (->> (charred/read-csv-supplier (ds-io/input-stream-or-reader input) options)
+  (->> (charred/read-csv-supplier (input-stream-or-reader input) options)
        (coerce/->iterator)
        pfor/->iterator))
 
