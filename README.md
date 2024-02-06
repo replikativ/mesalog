@@ -27,7 +27,7 @@
 
 # tablehike
 
-Loads CSV data into Datalog databases with a single function call.
+Loads CSV data into Datalog databases with (currently) a single function call.
 
 
 <a id="org24363d5"></a>
@@ -39,7 +39,10 @@ Loads CSV data into Datalog databases with a single function call.
     -   Parsers (types)
     -   Schema
     -   Cardinality
+- Automatic type inference and parsing of relatively simple datetime values
 -   Automatic vector value detection and parsing
+-   Not too slow (improvements soon with any luck): ~45s per million rows to parse and infer schema
+    - See `tablehike.demo` namespace for details
 
 
 <a id="orgd802d1e"></a>
