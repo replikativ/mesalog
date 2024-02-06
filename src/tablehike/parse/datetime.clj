@@ -150,8 +150,11 @@ parse a wide variety of local date formats."
                              (ZonedDateTime/from %))}))
 
 
-(defn datetime-formatter [pattern]
-  (DateTimeFormatter/ofPattern pattern))
+(defn datetime-formatter
+  ([pattern locale]
+   (DateTimeFormatter/ofPattern pattern locale))
+  ([pattern]
+   (DateTimeFormatter/ofPattern pattern)))
 
 
 (defn datetime-formatter-parse-fn
