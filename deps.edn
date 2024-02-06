@@ -9,8 +9,11 @@
         io.replikativ/datahike {:mvn/version "0.6.1557"}
         techascent/tech.io {:mvn/version "4.31"}}
 
- :aliases {:dev {:extra-deps {criterium/criterium {:mvn/version "0.4.6"}
-                              hashp/hashp {:mvn/version "0.2.2"}}}
+ :aliases {:dev {:extra-deps {com.h2database/h2 {:mvn/version "2.1.214"}
+                              criterium/criterium {:mvn/version "0.4.6"}
+                              hashp/hashp {:mvn/version "0.2.2"}
+                              io.replikativ/datahike-jdbc {:mvn/version "0.3.47"}
+                              techascent/tech.ml.dataset {:mvn/version "7.023"}}}
 
            :test {:extra-paths ["test"]
                   :extra-deps {lambdaisland/kaocha              {:mvn/version "1.64.1010"}
