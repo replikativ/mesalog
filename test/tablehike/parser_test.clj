@@ -3,7 +3,7 @@
             [clojure.java.io :as io]
             [clojure.set :as clj-set]
             [clojure.string :as string]
-            [clojure.test :refer [deftest testing is use-fixtures]]
+            [clojure.test :refer [deftest testing is]]
             [tablecloth.api :as tc]
             [tablehike.parse.parser :as parser])
   (:import [java.util UUID]))
