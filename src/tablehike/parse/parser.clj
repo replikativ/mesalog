@@ -373,7 +373,7 @@
 
 
 ;; TODO move?
-(defn col-idx->col-name-fn [options]
+(defn col-idx->col-name-default-fn [options]
   (fn [idx]
     (let [default #(str "column-" %)]
       (if-some [idx->colname (:idx->colname options)]
@@ -385,26 +385,30 @@
         (default idx)))))
 
 
+(defn- col-idx->col-name-fn [header-row options]
+  (let [idx->colname-default (col-idx->col-name-default-fn options)
+        header-row? (some? header-row)
+        header-row-length (when header-row?
+                            (count header-row))]
+    (memoize #(if (and header-row? (< % header-row-length))
+                (let [colname (nth header-row %)]
+                  (if (> (.length ^String colname) 0)
+                    colname
+                    (idx->colname-default %)))
+                (idx->colname-default %)))))
+
+
 ;; TODO move?
 (defn colname->ident-fn [options]
-  (or (:colname->ident options)
-      #(-> (string/replace % #"\s+" "-")
-           keyword)))
+  (memoize (or (:colname->ident options)
+               #(-> (string/replace % #"\s+" "-")
+                    keyword))))
 
 
 ;; Create a function that produces a parser for a given column index
-(defn- create-col-parser-fn [header-row parsers-spec options]
+(defn- create-col-parser-fn [idx->colname colname->ident parsers-spec options]
   (let [include-cols (or (:include-cols options)
                          (constantly true))
-        idx->colname-default (col-idx->col-name-fn options)
-        idx->colname #(if (and (some? header-row)
-                               (< % (.length ^PersistentVector header-row)))
-                        (let [colname (nth header-row %)]
-                          (if (> (.length ^String colname) 0)
-                            colname
-                            (idx->colname-default %)))
-                        (idx->colname-default %))
-        colname->ident (colname->ident-fn options)
         cascading-get (fn [f col-idx col-name]
                         (or (f col-idx)
                             (or (f col-name)
@@ -432,7 +436,10 @@
 (defn- iter->parsers
   ^ObjectArrayList [header-row ^Iterator row-iter parsers-spec options]
   (let [parsers (parser-array-list)
-        col-idx->parser (->> (create-col-parser-fn header-row parsers-spec options)
+        col-idx->parser (->> (create-col-parser-fn (col-idx->col-name-fn header-row options)
+                                                   (colname->ident-fn options)
+                                                   parsers-spec
+                                                   options)
                              (col-idx->parser-fn parsers))]
     ; TODO Does reduce-kv work instead? If yes, is it comparable in performance?
     (reduce (hamf-rf/indexed-accum

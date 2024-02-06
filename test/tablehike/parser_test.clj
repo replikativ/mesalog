@@ -320,7 +320,7 @@
         subvec-range (range 2 4)
         test-fn (fn [opts]
                   (let [parsers (parser/infer-parsers shapes-modified-file {} opts)
-                        idx->colname (parser/col-idx->col-name-fn opts)]
+                        idx->colname (parser/col-idx->col-name-default-fn opts)]
                     (doseq [i subvec-range]
                       (let [p (nth parsers i)]
                         (is (= (:column-name p)
@@ -340,7 +340,7 @@
     (let [options {:header-row? false}
           parsers (-> (io/file data-folder "routes-no-header.csv")
                       (parser/infer-parsers {} options))
-          idx->colname (parser/col-idx->col-name-fn {})
+          idx->colname (parser/col-idx->col-name-default-fn {})
           expected-dtypes {0 :db.type/string
                            1 :db.type/long
                            2 :db.type/string
