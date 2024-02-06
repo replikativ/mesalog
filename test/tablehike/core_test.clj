@@ -445,34 +445,3 @@
       (let [schema (:col (d/schema @test-conn))]
         (is (= (:db/valueType schema) :db.type/tuple))
         (is (= (:db/tupleTypes schema) [:db.type/string :db.type/long]))))))
-
-(comment
-  (require '[clojure.test :refer [run-tests test-vars]]
-           '[criterium.core :as cr])
-
-  (test-vars [#'existing-schema])
-  (test-vars [#'consistent-existing-schema])
-
-  (def cfg (d/create-database))
-  (def conn (d/connect cfg))
-  (d/delete-database cfg)
-
-  (def create-dt-fn dtype-dt/local-date-time)
-  (def dt-type nil)
-  (def fname "datetime-test.csv")
-  (-> (tc/dataset [{:a 0 :b (create-dt-fn)}
-                   {:a 1 :b nil}
-                   {:a 2 :b (create-dt-fn)}])
-      (tc/write! fname))
-  ;; TODO rm
-  (println (tc/dataset fname))
-  (->> (if (some? dt-type)
-         {"b" dt-type}
-         {})
-       (load-csv fname conn))
-  (is (-> (:b (d/schema @conn))
-          :db/valueType
-          (= :db.type/instant)))
-  (finally
-       (.delete (File. fname))))))
-  )
