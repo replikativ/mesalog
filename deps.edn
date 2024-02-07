@@ -1,16 +1,15 @@
 {:paths ["src" "resources" "target/classes"]
 
- :deps {; version 1.032 seems to cause a bug with tablecloth.api/write!
+ :deps {cnuernber/dtype-next {:mvn/version "10.108"}
         com.cnuernber/charred {:mvn/version "1.033"}
-        cnuernber/dtype-next {:mvn/version "10.108"}
         com.cnuernber/ham-fisted {:mvn/version "2.015"}
+        criterium/criterium {:mvn/version "0.4.6"}
+        io.replikativ/datahike {:mvn/version "0.6.1557"}
         org.clojure/clojure {:mvn/version "1.11.1"}
         org.roaringbitmap/RoaringBitmap {:mvn/version "0.9.0"}
-        io.replikativ/datahike {:mvn/version "0.6.1557"}
         techascent/tech.io {:mvn/version "4.31"}}
 
  :aliases {:dev {:extra-deps {com.h2database/h2 {:mvn/version "2.1.214"}
-                              criterium/criterium {:mvn/version "0.4.6"}
                               hashp/hashp {:mvn/version "0.2.2"}
                               io.replikativ/datahike-jdbc {:mvn/version "0.3.47"}
                               techascent/tech.ml.dataset {:mvn/version "7.023"}}}
