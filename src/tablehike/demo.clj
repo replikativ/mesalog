@@ -43,7 +43,7 @@
 
 ;;; Cardinality
 
-(def shapes-file (io/file data-dir "shapes.csv"))
+(def ^:private shapes-file (io/file data-dir "shapes.csv"))
 
 ; Cardinality-many inference
 (cfg-reset)
@@ -82,7 +82,7 @@
 (d/schema @(conn-get))
 
 ; query data just transacted by last example invocation
-(def min-avg-max
+(def ^:private min-avg-max
   (first (d/q '[:find (min ?lat) (avg ?lat) (max ?lat)
                 :where
                 [_ :shape/pt-lat ?lat]]
@@ -124,7 +124,7 @@
 ;; Can be skipped without loss of continuity
 
 ; Finding coordinates of all parent stations, with refs
-(def all-parent-coordinates
+(def ^:private all-parent-coordinates
   (d/q '[:find ?lat ?lon
          :where
          [?child :stop/parent-station ?parent]
