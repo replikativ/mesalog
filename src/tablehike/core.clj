@@ -140,7 +140,7 @@
   - `:batch-size`: The number of rows to read and transact per batch (default `128,000`).
   - `:num-rows`: The number of rows in the CSV file.
   - `:separator`: Separator character for CSV row entries. Defaults to `,`.
-  - `:parser-sample-size`: Number of rows to sample for type (parser) inference.
+  - `:parser-sample-size`: Number of rows to sample for type (parser) inference. Defaults to `Long/MAX_VALUE`.
   - `:vector-delims-use`: Whether vector-valued entries are delimited, e.g. by square brackets (`[]`).
   Defaults to `true`.
   - `:vector-open-char`: Left delimiter for vector values, only applicable if `:vector-delims-use` is `true`.

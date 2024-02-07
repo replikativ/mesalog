@@ -430,7 +430,7 @@
     (if (and (some? num-rows)
              (some? parser-sample-size))
       (min num-rows parser-sample-size)
-      (or num-rows parser-sample-size 12800))))
+      (or num-rows parser-sample-size Long/MAX_VALUE))))
 
 
 (defn- iter->parsers
