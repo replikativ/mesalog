@@ -44,6 +44,7 @@ Loads CSV data into Datalog databases with (currently) a single function call.
 -   Automatic type inference and parsing of relatively simple datetime values
 -   Automatic vector value detection and parsing
 -   Not too slow (improvements soon with any luck): ~45s per million rows to parse and infer schema.
+    - This is mostly for the record; it likely still leaves database transactions of the data as the performance bottleneck for most backends (though only Datahike is currently supported).
     -   See `tablehike.demo` namespace for details.
 
 
