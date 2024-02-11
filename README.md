@@ -48,8 +48,8 @@ Please note that the API is not yet fully stable. Breaking changes may occur, th
 
 ### Presentations
 
-Note: substantial overlap in content, though the earlier talk is somewhat more conceptually comprehensive
-[Clojure Berlin lightning talk, December 2023](https://docs.google.com/presentation/d/10mCViOX9Lkmxi8t0V7vnTLNIdoToPfVMZIUxW48onUQ/edit?usp=sharing)
+Note: substantial overlap in content, though the earlier talk is somewhat more conceptually comprehensive  
+[Clojure Berlin lightning talk, December 2023](https://docs.google.com/presentation/d/10mCViOX9Lkmxi8t0V7vnTLNIdoToPfVMZIUxW48onUQ/edit?usp=sharing)  
 [Austin Clojure Meetup, November 2023](https://docs.google.com/presentation/d/1LotuOmUVs5bVAhMiCt8xHyQoI-CfsB2gCaYkPmvZx4k/edit?usp=sharing)
 
 
