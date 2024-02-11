@@ -282,11 +282,11 @@
          (into [] (map #(nth % 1))))))
 
 
-(defn update-schema! [^ISchemaBuilder schema-builder row-idx row-vals]
+(defn- update-schema! [^ISchemaBuilder schema-builder row-idx row-vals]
   (.updateSchema schema-builder row-idx row-vals))
 
 
-(defn finalize-schema [^ISchemaBuilder schema-builder]
+(defn- finalize-schema [^ISchemaBuilder schema-builder]
   (.finalizeSchema schema-builder))
 
 
