@@ -1,72 +1,67 @@
 
 # Table of Contents
 
-1.  [tablehike](#orga0bbb9b)
-    1.  [TL;DR](#orgea2e311)
-        1.  [Presentations](#orgebc13d5)
-    2.  [Acknowledgements](#org0323577)
-    3.  [Quickstart](#org1c44413)
-    4.  [Columns and attributes](#org01cb7f4)
-    5.  [Column identifiers](#orgf8834f0)
-    6.  [Including and excluding columns](#org6809a0c)
-    7.  [Supported column data types](#org2605c2c)
-    8.  [Parsers vs. schema](#orge5805c7)
-    9.  [Parser descriptions](#orgb7ae41a)
-    10. [Schema description](#orge08d991)
-    11. [Schema-on-read](#org7624d0e)
-    12. [Cardinality inference](#orgd88067c)
-    13. [Attributes already in schema](#orgbcb2e2c)
-    14. [Reference-type attributes (with `:db/valueType` `:db.type/ref`)](#org6c30c8a)
-    15. [Vector-valued columns](#org974970d)
-    16. [Tuples](#orgbf58e01)
-    17. [Options](#orgcbef19d)
-    18. [More examples](#org73aad46)
-    19. [Current limitations](#orgff5256d)
-    20. [License](#org00ea0c7)
+1.  [TL;DR](#org85d77cc)
+    1.  [Presentations](#orgd12de98)
+2.  [Acknowledgements](#orgb62687c)
+3.  [Quickstart](#org8158cc7)
+4.  [Columns and attributes](#org7d0496c)
+5.  [Column identifiers](#orgbbfcdd3)
+6.  [Including and excluding columns](#org350d346)
+7.  [Supported column data types](#orgdb4c5b3)
+8.  [Parsers vs. schema](#orga39dbe3)
+9.  [Parser descriptions](#org43359b6)
+10. [Schema description](#org48833d3)
+11. [Schema-on-read](#orgb12e02f)
+12. [Cardinality inference](#orgce16e08)
+13. [Attributes already in schema](#org9bb8c3f)
+14. [Reference-type attributes (with `:db/valueType` `:db.type/ref`)](#orgf305146)
+15. [Vector-valued columns](#org4c040c4)
+16. [Tuples](#org878de7d)
+17. [Options](#org8951e89)
+18. [More examples](#orgd3dd8ae)
+19. [Current limitations](#org61f1dd3)
+20. [License](#orgb6941dd)
 
 
-<a id="orga0bbb9b"></a>
+<a id="org85d77cc"></a>
 
-# tablehike
+# TL;DR
 
-Loads CSV data into Datalog databases with (currently) a single function call.
+Loads CSV data into Datalog databases with (for now) a single function call.
 
-
-<a id="orgea2e311"></a>
-
-## TL;DR
-
--   Handles arbitrarily large files
+-   Handles arbitrarily large files by default
 -   Offers both automatic inference and user specification of
     -   Parsers (types)
     -   Schema
     -   Cardinality
 -   Automatic type inference and parsing of relatively simple datetime values
--   Automatic vector value detection and parsing
+-   Automatic vector/tuple value detection and parsing
+    -   E.g. `"[1,2,3]"` -> `[1 2 3]`
 -   Not too slow (improvements soon with any luck): ~45s per million rows to parse and infer schema.
-    - This is mostly for the record; it likely still leaves database transactions of the data as the performance bottleneck for most backends (though only Datahike is currently supported).
+    -   This is mostly for the record; it likely still leaves database transactions of the data as the performance bottleneck for most backends (though only Datahike is currently supported).
     -   See `tablehike.demo` namespace for details.
 
 
-<a id="orgebc13d5"></a>
+<a id="orgd12de98"></a>
 
-### Presentations
+## Presentations
 
-Note: substantial overlap in content, though the earlier talk is somewhat more conceptually comprehensive  
-[Clojure Berlin lightning talk, December 2023](https://docs.google.com/presentation/d/10mCViOX9Lkmxi8t0V7vnTLNIdoToPfVMZIUxW48onUQ/edit?usp=sharing)  
+Note: substantial overlap in content, though the earlier talk is somewhat more conceptually comprehensive
+[Clojure Berlin lightning talk, December 2023](https://docs.google.com/presentation/d/10mCViOX9Lkmxi8t0V7vnTLNIdoToPfVMZIUxW48onUQ/edit?usp=sharing)
 [Austin Clojure Meetup, November 2023](https://docs.google.com/presentation/d/1LotuOmUVs5bVAhMiCt8xHyQoI-CfsB2gCaYkPmvZx4k/edit?usp=sharing)
 
 
-<a id="org0323577"></a>
+<a id="orgb62687c"></a>
 
-## Acknowledgements
+# Acknowledgements
 
 Much of the code in `src/tablehike/parse` is adapted from the library [tech.ml.dataset](https://github.com/techascent/tech.ml.dataset).
 
 
-<a id="org1c44413"></a>
+<a id="org8158cc7"></a>
 
-## Quickstart
+# Quickstart
 
 [![Clojars Project](https://img.shields.io/clojars/v/io.replikativ/tablehike.svg)](https://clojars.org/io.replikativ/tablehike) [![cljdoc badge](https://cljdoc.org/badge/io.replikativ/tablehike)](https://cljdoc.org/d/io.replikativ/tablehike)
 
@@ -144,9 +139,9 @@ And `options` can be:
      :header-row? false}
 
 
-<a id="org01cb7f4"></a>
+<a id="org7d0496c"></a>
 
-## Columns and attributes
+# Columns and attributes
 
 Each column represents either of the following:
 
@@ -154,9 +149,9 @@ Each column represents either of the following:
 2.  An element in a heterogeneous or homogeneous tuple.
 
 
-<a id="orgf8834f0"></a>
+<a id="orgbbfcdd3"></a>
 
-## Column identifiers
+# Column identifiers
 
 Columns can be identified by (nonnegative, 0-based) index, name (string-valued), or keyword (&ldquo;ident&rdquo;).
 
@@ -167,16 +162,16 @@ Columns can be identified by (nonnegative, 0-based) index, name (string-valued),
 All three forms of identifier are supported in parser descriptions and the `:include-cols` option. Unfortunately, that isn&rsquo;t yet the case for the schema description; apologies.
 
 
-<a id="org6809a0c"></a>
+<a id="org350d346"></a>
 
-## Including and excluding columns
+# Including and excluding columns
 
 By default, data from all columns are loaded. If not, whether a column should be included or excluded can be specified via a predicate in the `:include-cols` option.
 
 
-<a id="org2605c2c"></a>
+<a id="orgdb4c5b3"></a>
 
-## Supported column data types
+# Supported column data types
 
     tablehike.parse.parser/supported-dtypes
     ;; i.e.
@@ -201,9 +196,9 @@ By default, data from all columns are loaded. If not, whether a column should be
       :local-date}
 
 
-<a id="orge5805c7"></a>
+<a id="orga39dbe3"></a>
 
-## Parsers vs. schema
+# Parsers vs. schema
 
 **Parser**: Interprets the values in a CSV column (field). Each included column has a parser, whether specified or inferred.
 **Schema** (on write): Explicitly defines data model.
@@ -211,9 +206,9 @@ By default, data from all columns are loaded. If not, whether a column should be
 Note that some databases (including Datahike) support both *schema-on-read* (no explicitly defined data model) and *schema-on-write* (the default, described above). The schema description (4th) argument to `load-csv` is only relevant with schema-on-write, and irrelevant to schema-on-read.
 
 
-<a id="orgb7ae41a"></a>
+<a id="org43359b6"></a>
 
-## Parser descriptions
+# Parser descriptions
 
 Column data types (and their corresponding parsers) can be automatically inferred, except where the column:
 
@@ -258,9 +253,9 @@ Parser descriptions can be specified as:
 See the section [Vector-valued columns](#vector-valued-columns) for details on specifying parser descriptions for vector-valued columns.
 
 
-<a id="orge08d991"></a>
+<a id="org48833d3"></a>
 
-## Schema description
+# Schema description
 
 Schema can be fully or partially specified for attributes introduced by the input CSV, via the 4th argument to `load-csv`. (It can also be specified for existing attributes, but any conflict with the existing schema, whether specified or inferred, will currently result in an error, even if the connected database supports the corresponding updates.)
 
@@ -287,30 +282,30 @@ The primary form currently supported for providing a schema description is a map
 Please see `load-csv` docstring for further detail.
 
 
-<a id="org7624d0e"></a>
+<a id="orgb12e02f"></a>
 
-## Schema-on-read
+# Schema-on-read
 
 Tablehike supports schema-on-read databases, though not thoroughly, as noted in [Current limitations](#current-limitations) below.
 
 
-<a id="orgd88067c"></a>
+<a id="orgce16e08"></a>
 
-## Cardinality inference
+# Cardinality inference
 
 Note that cardinality many can only be inferred in the presence of a separate attribute marked as unique (`:db.unique/identity` or `:db.unique/value`).
 
 
-<a id="orgbcb2e2c"></a>
+<a id="org9bb8c3f"></a>
 
-## Attributes already in schema
+# Attributes already in schema
 
 Tablehike currently supports loading data for existing attributes, as long as their schema remains the same; unfortunately, it doesn&rsquo;t yet support schema updates even where allowed by the connected database. As stated above, any conflict with the existing schema, whether specified or inferred, will currently result in an error.
 
 
-<a id="org6c30c8a"></a>
+<a id="orgf305146"></a>
 
-## Reference-type attributes (with `:db/valueType` `:db.type/ref`)
+# Reference-type attributes (with `:db/valueType` `:db.type/ref`)
 
 Examples above illustrate one way reference-type attributes can be represented in CSV. Another way is possible, via a tuple-valued field (column), e.g. the column `"station/parent-station"` could have values like `[:station/id 12345]` instead of `12345`. In this case, the column would be self-contained, and assuming valid tuple-valued references throughout the parser inference row sample:
 
@@ -318,9 +313,9 @@ Examples above illustrate one way reference-type attributes can be represented i
 -   Type specification is unnecessary: `{:db.type/ref {:station/parent-station :station/id}}` can be dropped.
 
 
-<a id="org974970d"></a>
+<a id="org4c040c4"></a>
 
-## Vector-valued columns
+# Vector-valued columns
 
 The parser description for a vector-valued column (whatever the `:db/valueType` of its corresponding attribute, if any) can be specified in one of a few ways:
 
@@ -331,9 +326,9 @@ The parser description for a vector-valued column (whatever the `:db/valueType` 
 A shorthand form for homogeneous vectors, e.g. `[[dt] [pfn]]`, `[[dt]]`, or maybe even `[dt]`, isn&rsquo;t yet supported.
 
 
-<a id="orgbf58e01"></a>
+<a id="org878de7d"></a>
 
-## Tuples
+# Tuples
 
 For the uninitiated: an [introduction](https://docs.datomic.com/on-prem/schema/schema.html#tuples) to tuples.
 
@@ -347,23 +342,23 @@ Instead of being represented across columns as illustrated above, (homogeneous a
 Note: Type and parser can also be inferred for heterogeneous tuples, but they must have uniform length (regardless of type inference needs).
 
 
-<a id="orgcbef19d"></a>
+<a id="org8951e89"></a>
 
-## Options
+# Options
 
 Supported options: `:batch-size`, `:num-rows`, `:separator`, `:parser-sample-size`, `:include-cols`, and `:header-row?`. See `load-csv` docstring for more, including `:idx->colname`, `:colname->ident`, and vector-related options.
 
 
-<a id="org73aad46"></a>
+<a id="orgd3dd8ae"></a>
 
-## More examples
+# More examples
 
 See test namespaces and the `tablehike.demo` namespace for more examples.
 
 
-<a id="orgff5256d"></a>
+<a id="org61f1dd3"></a>
 
-## Current limitations
+# Current limitations
 
 Many if not most of the remaining major limitations of Tablehike are due to the continuing (even if much decreased) presence of coupling between parsers and schema, and current lack of a clean separation and coherent interface between them. For example:
 
@@ -375,9 +370,9 @@ Many if not most of the remaining major limitations of Tablehike are due to the 
 However, at least one such limitation not attributable to the lacking parser-schema interface exists: currently, only [Datahike](https://datahike.io) (see also [GitHub](https://github.com/replikativ/datahike)) is supported, though that shall be extended to other databases once the API and implementation have matured.
 
 
-<a id="org00ea0c7"></a>
+<a id="orgb6941dd"></a>
 
-## License
+# License
 
 Copyright © 2022-2023 Yee Fay Lim
 
