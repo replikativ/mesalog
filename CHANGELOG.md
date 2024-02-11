@@ -22,3 +22,17 @@
 
 ### Added
 - Support for chunking, for files too large to fit within memory
+
+## [0.2.211] - 2024-02-07
+
+### Changed
+- **BREAKING**: `load-csv` argument order, semantics, and usage.
+  - Database `cfg` has been supplanted by `conn`.
+  - `filename` and `conn` are required.
+  - `schema-opts` -> `schema-desc`, with different keys and semantics, as described in the docstring and `README.md`.
+  - Optional `parsers-desc` argument added for specification of  column parsers / types.
+- Type / Parser inference implemented within repo, instead of relying on `scicloj/tablecloth`.
+
+### Added
+- `tablehike.parse.parser` namespace added as replacement for `scicloj/tablecloth` dependency (see last item in the list of changes for this release).
+- `tablehike.schema` namespace added for schema inference, in conjunction with parser / type inference implementation.
