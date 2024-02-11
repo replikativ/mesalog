@@ -1,5 +1,5 @@
 
-# Table of Contents
+## Table of Contents
 
 1.  [TL;DR](#org6788284)
     1.  [Presentations](#org43bffbc)
@@ -26,7 +26,7 @@
 
 <a id="org6788284"></a>
 
-# TL;DR
+## TL;DR
 
 Loads CSV data into Datalog databases with (for now) a single function call.
 
@@ -34,7 +34,6 @@ Loads CSV data into Datalog databases with (for now) a single function call.
 -   Offers both automatic inference and user specification of
     -   Parsers (types)
     -   Schema
-    -   Cardinality
 -   Automatic type inference and parsing of relatively simple datetime values
 -   Automatic vector/tuple value detection and parsing
     -   E.g. `"[1,2,3]"` -> `[1 2 3]`
@@ -42,10 +41,12 @@ Loads CSV data into Datalog databases with (for now) a single function call.
     -   This is mostly for the record; it likely still leaves database transactions of the data as the performance bottleneck for most backends (though only Datahike is currently supported).
     -   See `mesalog.demo` namespace for details.
 
+Please note that the API is not yet fully stable. Breaking changes may occur, though they will be communicated through the changelog and release notes.
+
 
 <a id="org43bffbc"></a>
 
-## Presentations
+### Presentations
 
 Note: substantial overlap in content, though the earlier talk is somewhat more conceptually comprehensive
 [Clojure Berlin lightning talk, December 2023](https://docs.google.com/presentation/d/10mCViOX9Lkmxi8t0V7vnTLNIdoToPfVMZIUxW48onUQ/edit?usp=sharing)
@@ -54,14 +55,14 @@ Note: substantial overlap in content, though the earlier talk is somewhat more c
 
 <a id="org4ba74f2"></a>
 
-# Acknowledgements
+## Acknowledgements
 
 Much of the code in `src/mesalog/parse` is adapted from the library [tech.ml.dataset](https://github.com/techascent/tech.ml.dataset).
 
 
 <a id="org7b0740b"></a>
 
-# Quickstart
+## Quickstart
 
 [![Clojars Project](https://img.shields.io/clojars/v/io.replikativ/mesalog.svg)](https://clojars.org/io.replikativ/mesalog) [![cljdoc badge](https://cljdoc.org/badge/io.replikativ/mesalog)](https://cljdoc.org/d/io.replikativ/mesalog)
 
@@ -141,7 +142,7 @@ And `options` can be:
 
 <a id="org00a83c8"></a>
 
-# Columns and attributes
+## Columns and attributes
 
 Each column represents either of the following:
 
@@ -151,7 +152,7 @@ Each column represents either of the following:
 
 <a id="orge0ea18a"></a>
 
-# Column identifiers
+## Column identifiers
 
 Columns can be identified by (nonnegative, 0-based) index, name (string-valued), or keyword (&ldquo;ident&rdquo;).
 
@@ -164,14 +165,14 @@ All three forms of identifier are supported in parser descriptions and the `:inc
 
 <a id="org1d0b0fd"></a>
 
-# Including and excluding columns
+## Including and excluding columns
 
 By default, data from all columns are loaded. If not, whether a column should be included or excluded can be specified via a predicate in the `:include-cols` option.
 
 
 <a id="org24b8d05"></a>
 
-# Supported column data types
+## Supported column data types
 
     mesalog.parse.parser/supported-dtypes
     ;; i.e.
@@ -198,7 +199,7 @@ By default, data from all columns are loaded. If not, whether a column should be
 
 <a id="org2faa2d4"></a>
 
-# Parsers vs. schema
+## Parsers vs. schema
 
 **Parser**: Interprets the values in a CSV column (field). Each included column has a parser, whether specified or inferred.
 **Schema** (on write): Explicitly defines data model.
@@ -208,7 +209,7 @@ Note that some databases (including Datahike) support both *schema-on-read* (no 
 
 <a id="orgfdadc77"></a>
 
-# Parser descriptions
+## Parser descriptions
 
 Column data types (and their corresponding parsers) can be automatically inferred, except where the column:
 
@@ -255,7 +256,7 @@ See the section [Vector-valued columns](#vector-valued-columns) for details on s
 
 <a id="org8012f73"></a>
 
-# Schema description
+## Schema description
 
 Schema can be fully or partially specified for attributes introduced by the input CSV, via the 4th argument to `load-csv`. (It can also be specified for existing attributes, but any conflict with the existing schema, whether specified or inferred, will currently result in an error, even if the connected database supports the corresponding updates.)
 
@@ -284,28 +285,28 @@ Please see `load-csv` docstring for further detail.
 
 <a id="org64261ba"></a>
 
-# Schema-on-read
+## Schema-on-read
 
 Mesalog supports schema-on-read databases, though not thoroughly, as noted in [Current limitations](#current-limitations) below.
 
 
 <a id="orgdb3dce9"></a>
 
-# Cardinality inference
+## Cardinality inference
 
 Note that cardinality many can only be inferred in the presence of a separate attribute marked as unique (`:db.unique/identity` or `:db.unique/value`).
 
 
 <a id="org91f11c9"></a>
 
-# Attributes already in schema
+## Attributes already in schema
 
 Mesalog currently supports loading data for existing attributes, as long as their schema remains the same; unfortunately, it doesn&rsquo;t yet support schema updates even where allowed by the connected database. As stated above, any conflict with the existing schema, whether specified or inferred, will currently result in an error.
 
 
 <a id="orgb3c29d5"></a>
 
-# Reference-type attributes (with `:db/valueType` `:db.type/ref`)
+## Reference-type attributes (with `:db/valueType` `:db.type/ref`)
 
 Examples above illustrate one way reference-type attributes can be represented in CSV. Another way is possible, via a tuple-valued field (column), e.g. the column `"station/parent-station"` could have values like `[:station/id 12345]` instead of `12345`. In this case, the column would be self-contained, and assuming valid tuple-valued references throughout the parser inference row sample:
 
@@ -315,7 +316,7 @@ Examples above illustrate one way reference-type attributes can be represented i
 
 <a id="orgb2967c6"></a>
 
-# Vector-valued columns
+## Vector-valued columns
 
 The parser description for a vector-valued column (whatever the `:db/valueType` of its corresponding attribute, if any) can be specified in one of a few ways:
 
@@ -328,7 +329,7 @@ A shorthand form for homogeneous vectors, e.g. `[[dt] [pfn]]`, `[[dt]]`, or mayb
 
 <a id="org887c8f3"></a>
 
-# Tuples
+## Tuples
 
 For the uninitiated: an [introduction](https://docs.datomic.com/on-prem/schema/schema.html#tuples) to tuples.
 
@@ -344,21 +345,21 @@ Note: Type and parser can also be inferred for heterogeneous tuples, but they mu
 
 <a id="org550b5d5"></a>
 
-# Options
+## Options
 
 Supported options: `:batch-size`, `:num-rows`, `:separator`, `:parser-sample-size`, `:include-cols`, and `:header-row?`. See `load-csv` docstring for more, including `:idx->colname`, `:colname->ident`, and vector-related options.
 
 
 <a id="org8e7c60f"></a>
 
-# More examples
+## More examples
 
 See test namespaces and the `mesalog.demo` namespace for more examples.
 
 
 <a id="org7b3cdd1"></a>
 
-# Current limitations
+## Current limitations
 
 Many if not most of the remaining major limitations of Mesalog are due to the continuing (even if much decreased) presence of coupling between parsers and schema, and current lack of a clean separation and coherent interface between them. For example:
 
@@ -372,7 +373,7 @@ However, at least one such limitation not attributable to the lacking parser-sch
 
 <a id="org9cf8ae1"></a>
 
-# License
+## License
 
 Copyright © 2022-2023 Yee Fay Lim
 
