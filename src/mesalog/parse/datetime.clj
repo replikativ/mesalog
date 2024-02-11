@@ -1,5 +1,5 @@
 ; TODO replace first and second with more performant equivalents
-(ns tablehike.parse.datetime
+(ns mesalog.parse.datetime
   (:require [clojure.string :as s])
   (:import [java.time Instant LocalDate LocalDateTime LocalTime OffsetDateTime ZonedDateTime ZoneId]
            [java.time.format DateTimeFormatter DateTimeFormatterBuilder]

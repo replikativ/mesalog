@@ -36,3 +36,8 @@
 ### Added
 - `tablehike.parse.parser` namespace added as replacement for `scicloj/tablecloth` dependency (see last item in the list of changes for this release).
 - `tablehike.schema` namespace added for schema inference, in conjunction with parser / type inference implementation.
+
+## [0.2.220] - 2024-02-11
+
+### Changed
+- Library name: from "tablehike" to "mesalog"

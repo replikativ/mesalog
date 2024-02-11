@@ -1,13 +1,13 @@
-(ns ^:no-doc tablehike.demo
+(ns ^:no-doc mesalog.demo
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as sh]
             [criterium.core :as cr]
             [datahike.api :as d]
-            [tablehike.core :as tbh]
-            [tablehike.read :as tbh-read]
-            [tablehike.parse.datetime :as dt]
-            [tablehike.parse.parser :as parser]
-            [tablehike.schema :as schema])
+            [mesalog.core :as m]
+            [mesalog.read :as m-read]
+            [mesalog.parse.datetime :as dt]
+            [mesalog.parse.parser :as parser]
+            [mesalog.schema :as schema])
   (:import [java.time LocalDateTime]
            [java.time.format DateTimeFormatter]))
 
@@ -48,7 +48,7 @@
 ; Cardinality-many inference
 (cfg-reset)
 (conn-reset)
-(tbh/load-csv shapes-file
+(m/load-csv shapes-file
               (conn-get)
               {}
               {:db.unique/identity #{:shape/id}})
@@ -64,7 +64,7 @@
   (->> {:db.type/tuple {:shape/pt [:shape/id :shape/pt-sequence]}
         :db.unique/identity #{:shape/pt}
         :db.type/compositeTuple {:shape/coordinates latlon}}
-       (tbh/load-csv shapes-file (conn-get) {})))
+       (m/load-csv shapes-file (conn-get) {})))
 (d/schema @(conn-get))
 
 ; NOTE not meant to be run: for the record only
@@ -72,13 +72,13 @@
 ; mishandles cardinality-many tuples
 (->> {:db.type/tuple {:shape/pt [:shape/pt-sequence :shape/pt-lat :shape/pt-lon]}
       :db.unique/identity #{:shape/id}}
-     (tbh/load-csv shapes-file (conn-get)))
+     (m/load-csv shapes-file (conn-get)))
 
 ; But curiously, this seems to work
 (db-reset)
 (->> {:db.type/compositeTuple {:shape/pt [:shape/pt-sequence :shape/pt-lat :shape/pt-lon]}
       :db.unique/identity #{:shape/id}}
-     (tbh/load-csv shapes-file (conn-get) {}))
+     (m/load-csv shapes-file (conn-get) {}))
 (d/schema @(conn-get))
 
 ; query data just transacted by last example invocation
@@ -103,7 +103,7 @@
 
 ; NOTE `:parser-sample-size` needed here to sample enough rows for correctly inferring type
 (db-reset)
-(tbh/load-csv (io/file data-dir "stops.csv")
+(m/load-csv (io/file data-dir "stops.csv")
               (conn-get)
               {}
               {:db.unique/identity #{:stop/id}
@@ -135,7 +135,7 @@
 
 ; Without refs
 (db-reset)
-(tbh/load-csv (io/file data-dir "stops.csv")
+(m/load-csv (io/file data-dir "stops.csv")
               (conn-get)
               {}
               {:db.unique/identity #{:stop/id}
@@ -158,7 +158,7 @@
 ;;; Variable-length homogeneous vector-valued column interpreted as cardinality-many attribute
 
 (db-reset)
-(tbh/load-csv (io/file data-dir "pokemon.csv") (conn-get))
+(m/load-csv (io/file data-dir "pokemon.csv") (conn-get))
 (d/datoms @(conn-get) :eavt)
 (:abilities (d/schema @(conn-get)))
 (d/q '[:find ?p
@@ -171,7 +171,7 @@
 
 ; Homogeneous tuples
 (db-reset)
-(tbh/load-csv (io/file data-dir "311-service-requests-sample.csv")
+(m/load-csv (io/file data-dir "311-service-requests-sample.csv")
               (conn-get)
               {}
               {}
@@ -207,7 +207,7 @@
                   schema-desc
                   existing-schema
                   (d/reverse-schema @conn)
-                  (tbh-read/csv->header-skipped-row-iter filename options)
+                  (m-read/csv->header-skipped-row-iter filename options)
                   options))]
     {:parsers parsers
      :schema schema}))

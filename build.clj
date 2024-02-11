@@ -6,7 +6,7 @@
             [clojure.string :as str])
   (:import (clojure.lang ExceptionInfo)))
 
-(def lib 'io.replikativ/tablehike)
+(def lib 'io.replikativ/mesalog)
 (def version (format "0.2.%s" (b/git-count-revs nil)))
 (def current-commit (gh/current-commit))
 (def class-dir "target/classes")

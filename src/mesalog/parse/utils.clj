@@ -1,10 +1,10 @@
-(ns tablehike.parse.utils
+(ns mesalog.parse.utils
   (:require [charred.api :as charred]
-            [tablehike.parse.datetime :as dt]
+            [mesalog.parse.datetime :as dt]
             [tech.v3.datatype :as dtype]))
 
 
-(def parse-failure :tablehike/parse-failure)
+(def parse-failure :mesalog/parse-failure)
 
 
 (defn make-safe-parse-fn [parse-fn]

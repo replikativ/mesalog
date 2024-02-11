@@ -1,4 +1,4 @@
-(ns ^:no-doc tablehike.read
+(ns ^:no-doc mesalog.read
   (:require [charred.api :as charred]
             [charred.coerce :as coerce]
             [tech.v3.io :as io]
@@ -65,5 +65,5 @@
     (not (instance? Number value))
     (or (nil? value)
         (.equals "" value)
-        (identical? value :tablehike/missing)
+        (identical? value :mesalog/missing)
         (and (string? value) (re-matches #"(?i)^n\/?a$" value)))))

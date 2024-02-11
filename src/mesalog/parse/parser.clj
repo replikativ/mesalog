@@ -1,9 +1,9 @@
-(ns tablehike.parse.parser
+(ns mesalog.parse.parser
   (:require [clojure.set :as clj-set]
             [clojure.string :as string]
-            [tablehike.parse.datetime :as dt]
-            [tablehike.parse.utils :refer [parse-failure] :as utils]
-            [tablehike.read :as csv-read]
+            [mesalog.parse.datetime :as dt]
+            [mesalog.parse.utils :refer [parse-failure] :as utils]
+            [mesalog.read :as csv-read]
             [tech.v3.datatype :as dtype]
             [tech.v3.datatype.bitmap :as bitmap]
             [ham-fisted.reduce :as hamf-rf])
@@ -11,11 +11,11 @@
            [java.util Iterator List UUID]
            [ham_fisted IMutList]
            [org.roaringbitmap RoaringBitmap]
-           [tablehike.read TakeReducer]
+           [mesalog.read TakeReducer]
            [tech.v3.datatype ArrayHelpers ObjectBuffer]))
 
 
-(def missing :tablehike/missing)
+(def missing :mesalog/missing)
 
 
 (def default-coercers

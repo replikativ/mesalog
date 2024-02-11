@@ -1,30 +1,30 @@
 
 # Table of Contents
 
-1.  [TL;DR](#org85d77cc)
-    1.  [Presentations](#orgd12de98)
-2.  [Acknowledgements](#orgb62687c)
-3.  [Quickstart](#org8158cc7)
-4.  [Columns and attributes](#org7d0496c)
-5.  [Column identifiers](#orgbbfcdd3)
-6.  [Including and excluding columns](#org350d346)
-7.  [Supported column data types](#orgdb4c5b3)
-8.  [Parsers vs. schema](#orga39dbe3)
-9.  [Parser descriptions](#org43359b6)
-10. [Schema description](#org48833d3)
-11. [Schema-on-read](#orgb12e02f)
-12. [Cardinality inference](#orgce16e08)
-13. [Attributes already in schema](#org9bb8c3f)
-14. [Reference-type attributes (with `:db/valueType` `:db.type/ref`)](#orgf305146)
-15. [Vector-valued columns](#org4c040c4)
-16. [Tuples](#org878de7d)
-17. [Options](#org8951e89)
-18. [More examples](#orgd3dd8ae)
-19. [Current limitations](#org61f1dd3)
-20. [License](#orgb6941dd)
+1.  [TL;DR](#org6788284)
+    1.  [Presentations](#org43bffbc)
+2.  [Acknowledgements](#org4ba74f2)
+3.  [Quickstart](#org7b0740b)
+4.  [Columns and attributes](#org00a83c8)
+5.  [Column identifiers](#orge0ea18a)
+6.  [Including and excluding columns](#org1d0b0fd)
+7.  [Supported column data types](#org24b8d05)
+8.  [Parsers vs. schema](#org2faa2d4)
+9.  [Parser descriptions](#orgfdadc77)
+10. [Schema description](#org8012f73)
+11. [Schema-on-read](#org64261ba)
+12. [Cardinality inference](#orgdb3dce9)
+13. [Attributes already in schema](#org91f11c9)
+14. [Reference-type attributes (with `:db/valueType` `:db.type/ref`)](#orgb3c29d5)
+15. [Vector-valued columns](#orgb2967c6)
+16. [Tuples](#org887c8f3)
+17. [Options](#org550b5d5)
+18. [More examples](#org8e7c60f)
+19. [Current limitations](#org7b3cdd1)
+20. [License](#org9cf8ae1)
 
 
-<a id="org85d77cc"></a>
+<a id="org6788284"></a>
 
 # TL;DR
 
@@ -40,10 +40,10 @@ Loads CSV data into Datalog databases with (for now) a single function call.
     -   E.g. `"[1,2,3]"` -> `[1 2 3]`
 -   Not too slow (improvements soon with any luck): ~45s per million rows to parse and infer schema.
     -   This is mostly for the record; it likely still leaves database transactions of the data as the performance bottleneck for most backends (though only Datahike is currently supported).
-    -   See `tablehike.demo` namespace for details.
+    -   See `mesalog.demo` namespace for details.
 
 
-<a id="orgd12de98"></a>
+<a id="org43bffbc"></a>
 
 ## Presentations
 
@@ -52,36 +52,36 @@ Note: substantial overlap in content, though the earlier talk is somewhat more c
 [Austin Clojure Meetup, November 2023](https://docs.google.com/presentation/d/1LotuOmUVs5bVAhMiCt8xHyQoI-CfsB2gCaYkPmvZx4k/edit?usp=sharing)
 
 
-<a id="orgb62687c"></a>
+<a id="org4ba74f2"></a>
 
 # Acknowledgements
 
-Much of the code in `src/tablehike/parse` is adapted from the library [tech.ml.dataset](https://github.com/techascent/tech.ml.dataset).
+Much of the code in `src/mesalog/parse` is adapted from the library [tech.ml.dataset](https://github.com/techascent/tech.ml.dataset).
 
 
-<a id="org8158cc7"></a>
+<a id="org7b0740b"></a>
 
 # Quickstart
 
-[![Clojars Project](https://img.shields.io/clojars/v/io.replikativ/tablehike.svg)](https://clojars.org/io.replikativ/tablehike) [![cljdoc badge](https://cljdoc.org/badge/io.replikativ/tablehike)](https://cljdoc.org/d/io.replikativ/tablehike)
+[![Clojars Project](https://img.shields.io/clojars/v/io.replikativ/mesalog.svg)](https://clojars.org/io.replikativ/mesalog) [![cljdoc badge](https://cljdoc.org/badge/io.replikativ/mesalog)](https://cljdoc.org/d/io.replikativ/mesalog)
 
 
 Reads, parses, and loads data from `filename` into a Datahike database via connection `conn`. The remaining arguments are optional: parser descriptions, schema description, and options for other relevant specifications.
 
     (require '[datahike.api :as d]
-             '[tablehike.core :as t])
+             '[mesalog.core :as m])
     
     (def cfg (d/create-database))
     (def conn (d/connect cfg))
     
     ;; 2-ary (basic)
-    (th/load-csv filename conn)
+    (m/load-csv filename conn)
     ;; 3-ary
-    (th/load-csv filename conn parser-descriptions)
+    (m/load-csv filename conn parser-descriptions)
     ;; 4-ary
-    (th/load-csv filename conn parser-descriptions schema-description)
+    (m/load-csv filename conn parser-descriptions schema-description)
     ;; 5-ary
-    (th/load-csv filename conn parser-descriptions schema-description options)
+    (m/load-csv filename conn parser-descriptions schema-description options)
 
 Where `parser-descriptions` can be:
 
@@ -139,7 +139,7 @@ And `options` can be:
      :header-row? false}
 
 
-<a id="org7d0496c"></a>
+<a id="org00a83c8"></a>
 
 # Columns and attributes
 
@@ -149,7 +149,7 @@ Each column represents either of the following:
 2.  An element in a heterogeneous or homogeneous tuple.
 
 
-<a id="orgbbfcdd3"></a>
+<a id="orge0ea18a"></a>
 
 # Column identifiers
 
@@ -162,18 +162,18 @@ Columns can be identified by (nonnegative, 0-based) index, name (string-valued),
 All three forms of identifier are supported in parser descriptions and the `:include-cols` option. Unfortunately, that isn&rsquo;t yet the case for the schema description; apologies.
 
 
-<a id="org350d346"></a>
+<a id="org1d0b0fd"></a>
 
 # Including and excluding columns
 
 By default, data from all columns are loaded. If not, whether a column should be included or excluded can be specified via a predicate in the `:include-cols` option.
 
 
-<a id="orgdb4c5b3"></a>
+<a id="org24b8d05"></a>
 
 # Supported column data types
 
-    tablehike.parse.parser/supported-dtypes
+    mesalog.parse.parser/supported-dtypes
     ;; i.e.
     #{:db.type/number
       :db.type/instant
@@ -196,7 +196,7 @@ By default, data from all columns are loaded. If not, whether a column should be
       :local-date}
 
 
-<a id="orga39dbe3"></a>
+<a id="org2faa2d4"></a>
 
 # Parsers vs. schema
 
@@ -206,7 +206,7 @@ By default, data from all columns are loaded. If not, whether a column should be
 Note that some databases (including Datahike) support both *schema-on-read* (no explicitly defined data model) and *schema-on-write* (the default, described above). The schema description (4th) argument to `load-csv` is only relevant with schema-on-write, and irrelevant to schema-on-read.
 
 
-<a id="org43359b6"></a>
+<a id="orgfdadc77"></a>
 
 # Parser descriptions
 
@@ -221,9 +221,9 @@ Column data types (and their corresponding parsers) can be automatically inferre
 
 `load-csv` accepts parser descriptions as its 3rd argument, with the description for each column containing its data type(s) as well as parser function(s). For a scalar-valued column, this takes the form `[dtype fn]`, which can (currently) be specified in one of these two ways:
 
--   A default data type, say `d`, as shorthand for `[d (d tablehike.parse.parser/default-coercers)]`, with the 2nd element being its corresponding default parser function. The value of `d` must come from:
+-   A default data type, say `d`, as shorthand for `[d (d mesalog.parse.parser/default-coercers)]`, with the 2nd element being its corresponding default parser function. The value of `d` must come from:
     
-        (set (keys tablehike.parse.parser/default-coercers))
+        (set (keys mesalog.parse.parser/default-coercers))
         ;; i.e.
         #{:db.type/number
           :db.type/instant
@@ -253,7 +253,7 @@ Parser descriptions can be specified as:
 See the section [Vector-valued columns](#vector-valued-columns) for details on specifying parser descriptions for vector-valued columns.
 
 
-<a id="org48833d3"></a>
+<a id="org8012f73"></a>
 
 # Schema description
 
@@ -282,28 +282,28 @@ The primary form currently supported for providing a schema description is a map
 Please see `load-csv` docstring for further detail.
 
 
-<a id="orgb12e02f"></a>
+<a id="org64261ba"></a>
 
 # Schema-on-read
 
-Tablehike supports schema-on-read databases, though not thoroughly, as noted in [Current limitations](#current-limitations) below.
+Mesalog supports schema-on-read databases, though not thoroughly, as noted in [Current limitations](#current-limitations) below.
 
 
-<a id="orgce16e08"></a>
+<a id="orgdb3dce9"></a>
 
 # Cardinality inference
 
 Note that cardinality many can only be inferred in the presence of a separate attribute marked as unique (`:db.unique/identity` or `:db.unique/value`).
 
 
-<a id="org9bb8c3f"></a>
+<a id="org91f11c9"></a>
 
 # Attributes already in schema
 
-Tablehike currently supports loading data for existing attributes, as long as their schema remains the same; unfortunately, it doesn&rsquo;t yet support schema updates even where allowed by the connected database. As stated above, any conflict with the existing schema, whether specified or inferred, will currently result in an error.
+Mesalog currently supports loading data for existing attributes, as long as their schema remains the same; unfortunately, it doesn&rsquo;t yet support schema updates even where allowed by the connected database. As stated above, any conflict with the existing schema, whether specified or inferred, will currently result in an error.
 
 
-<a id="orgf305146"></a>
+<a id="orgb3c29d5"></a>
 
 # Reference-type attributes (with `:db/valueType` `:db.type/ref`)
 
@@ -313,7 +313,7 @@ Examples above illustrate one way reference-type attributes can be represented i
 -   Type specification is unnecessary: `{:db.type/ref {:station/parent-station :station/id}}` can be dropped.
 
 
-<a id="org4c040c4"></a>
+<a id="orgb2967c6"></a>
 
 # Vector-valued columns
 
@@ -326,7 +326,7 @@ The parser description for a vector-valued column (whatever the `:db/valueType` 
 A shorthand form for homogeneous vectors, e.g. `[[dt] [pfn]]`, `[[dt]]`, or maybe even `[dt]`, isn&rsquo;t yet supported.
 
 
-<a id="org878de7d"></a>
+<a id="org887c8f3"></a>
 
 # Tuples
 
@@ -342,25 +342,25 @@ Instead of being represented across columns as illustrated above, (homogeneous a
 Note: Type and parser can also be inferred for heterogeneous tuples, but they must have uniform length (regardless of type inference needs).
 
 
-<a id="org8951e89"></a>
+<a id="org550b5d5"></a>
 
 # Options
 
 Supported options: `:batch-size`, `:num-rows`, `:separator`, `:parser-sample-size`, `:include-cols`, and `:header-row?`. See `load-csv` docstring for more, including `:idx->colname`, `:colname->ident`, and vector-related options.
 
 
-<a id="orgd3dd8ae"></a>
+<a id="org8e7c60f"></a>
 
 # More examples
 
-See test namespaces and the `tablehike.demo` namespace for more examples.
+See test namespaces and the `mesalog.demo` namespace for more examples.
 
 
-<a id="org61f1dd3"></a>
+<a id="org7b3cdd1"></a>
 
 # Current limitations
 
-Many if not most of the remaining major limitations of Tablehike are due to the continuing (even if much decreased) presence of coupling between parsers and schema, and current lack of a clean separation and coherent interface between them. For example:
+Many if not most of the remaining major limitations of Mesalog are due to the continuing (even if much decreased) presence of coupling between parsers and schema, and current lack of a clean separation and coherent interface between them. For example:
 
 -   The parser descriptions argument to `load-csv` still requires column type specification, even when it is irrelevant because the connected database has schema-on-read.
 -   More importantly:
@@ -370,7 +370,7 @@ Many if not most of the remaining major limitations of Tablehike are due to the 
 However, at least one such limitation not attributable to the lacking parser-schema interface exists: currently, only [Datahike](https://datahike.io) (see also [GitHub](https://github.com/replikativ/datahike)) is supported, though that shall be extended to other databases once the API and implementation have matured.
 
 
-<a id="orgb6941dd"></a>
+<a id="org9cf8ae1"></a>
 
 # License
 

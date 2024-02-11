@@ -1,12 +1,12 @@
-(ns tablehike.core-test
+(ns mesalog.core-test
   (:require [clojure.java.io :as io]
             [clojure.set :as s]
             [clojure.string :as string]
             [clojure.test :refer [deftest testing is use-fixtures]]
             [datahike.api :as d]
-            [tablehike.core :refer :all]
-            [tablehike.parse.parser :as parser]
-            [tablehike.parse.utils :as utils]
+            [mesalog.core :refer :all]
+            [mesalog.parse.parser :as parser]
+            [mesalog.parse.utils :as utils]
             [tablecloth.api :as tc]
             [tech.v3.datatype.datetime :as dtype-dt])
   (:import [java.util UUID]
@@ -16,13 +16,13 @@
 (def ^:dynamic test-conn nil)
 
 
-(defn- tablehike-test-fixture [f]
+(defn- mesalog-test-fixture [f]
   (let [cfg (d/create-database {})]
     (binding [test-conn (d/connect cfg)]
       (f)
       (d/delete-database cfg))))
 
-(use-fixtures :each tablehike-test-fixture)
+(use-fixtures :each mesalog-test-fixture)
 
 
 (defn- tc-dataset [file]

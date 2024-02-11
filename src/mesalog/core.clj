@@ -1,13 +1,13 @@
-(ns tablehike.core
+(ns mesalog.core
   (:require [clojure.set :as clj-set]
             [datahike.api :as d]
-            [tablehike.parse.parser :as parser]
-            [tablehike.parse.utils :as parse-utils]
-            [tablehike.parse.datetime :as dt]
-            [tablehike.read :as csv-read]
-            [tablehike.schema :as schema])
+            [mesalog.parse.parser :as parser]
+            [mesalog.parse.utils :as parse-utils]
+            [mesalog.parse.datetime :as dt]
+            [mesalog.read :as csv-read]
+            [mesalog.schema :as schema])
   (:import [clojure.lang Indexed PersistentVector]
-           [tablehike.read TakeReducer]))
+           [mesalog.read TakeReducer]))
 
 
 (defn- csv-row->entity-map-parser [idents
@@ -255,9 +255,9 @@
 
   For a scalar-valued column, this takes the form ~[dtype fn]~, which can (currently) be specified in
   one of these two ways:
-  - A default data type, say ~d~, as shorthand for ~[d (d tablehike.parse.parser/default-coercers)]~,
+  - A default data type, say ~d~, as shorthand for ~[d (d mesalog.parse.parser/default-coercers)]~,
   with the 2nd element being its corresponding default parser function. The value of ~d~ must come from
-  `(keys tablehike.parse.parser/default-coercers)`.
+  `(keys mesalog.parse.parser/default-coercers)`.
   - In full, as a two-element tuple of type and (custom) parser, e.g.
   `[:db.type/long #(long (Float/parseFloat %))]`.
 
@@ -275,10 +275,106 @@
   at the last), with each element again being a parser description taking the form above, just like one given
   as a map value.
 
-  Please see test namespace `tablehike.parser-test` for usage examples."
+  Please see test namespace `mesalog.parser-test` for usage examples."
   ([filename parsers-desc options]
    (parser/infer-parsers filename parsers-desc options))
   ([filename parsers-desc]
    (infer-parsers filename parsers-desc {}))
   ([filename]
    (infer-parsers filename {} {})))
+
+
+(comment
+  (require '[criterium.core :as cr]
+           '[datahike-jdbc.core])
+
+  ;(def cfg {:store {:backend :file
+  ;                  :scope "192.168.86.42"
+  ;                  :path "test/databases/vbb-db"}})
+  (def cfg {:store {:backend :jdbc
+                    :dbtype "h2"
+                    :dbname "./test/databases/vbb-db"}})
+  cfg
+  (def cfg (d/create-database cfg))
+  (def conn (d/connect cfg))
+  (d/delete-database cfg)
+
+  (cr/with-progress-reporting
+    (cr/quick-bench (load-csv "resources/311_service_requests_2010-present_sample.csv"
+                              conn
+                              {}
+                              {}
+                              {:vector-open-char \(
+                               :vector-close-char \)
+                               :batch-size 20000
+                               :parser-sample-size 256000
+                               :num-rows 1280000})))
+
+  (def cfg (do (d/delete-database cfg)
+               (d/create-database)))
+  (def conn (d/connect cfg))
+  (def old-schema (select-keys (d/schema @conn) [:route/id]))
+  (def latest-db (load-csv "data/routes-partial.csv" conn))
+  (def latest-db (load-csv "data/routes-conflict.csv" conn))
+  (def latest-db (load-csv "data/routes.csv" conn))
+  latest-db
+  (d/schema @conn)
+
+  (:config @conn)
+  (d/datoms @conn :eavt)
+  (:route/type (d/entity @conn 1))
+  ;:route/id = { :db/ident :route/id, :db/valueType :db.type/string, :db/cardinality :db.cardinality/one }
+
+  (def something (load-csv "data/stops-sample.csv"
+                           conn
+                           {}
+                           {:db.unique/identity #{:stop/id}
+                            :db.type/ref {:stop/parent-station :stop/id}}))
+  something
+  (d/q '[:find ?s ?p
+         :where
+         [?s :stop/parent-station ?p]
+         [?p :stop/id "de:12072:900245027"]]
+       @conn)
+  (d/q '[:find ?s
+         :where
+         [?s :stop/parent-station ?p]]
+       @conn)
+  (d/q '[:find ?s ?pid
+         :where
+         [?s :stop/parent-station ?p]
+         [?p :stop/id ?pid]]
+       @conn)
+  (:stop/parent-station (d/entity @conn 257))
+  (:stop/id (d/entity @conn 97))
+  (d/datoms @conn :eavt)
+
+  (def schema [{:db/ident :shape/id
+                :db/valueType :db.type/long
+                :db/cardinality :db.cardinality/one}
+               {:db/ident :shape/pt-lat
+                :db/valueType :db.type/float
+                :db/cardinality :db.cardinality/many}
+               {:db/ident :shape/pt-lon
+                :db/valueType :db.type/float
+                :db/cardinality :db.cardinality/many}
+               {:db/ident :shape/pt-sequence
+                :db/valueType :db.type/bigint
+                :db/cardinality :db.cardinality/many}
+               {:db/ident :shape/coordinates
+                :db/valueType :db.type/tuple
+                :db/tupleAttrs [:shape/pt-lat :shape/pt-lon]
+                :db/cardinality :db.cardinality/many}
+               {:db/ident :shape/pt
+                :db/valueType :db.type/tuple
+                :db/tupleAttrs [:shape/coordinates :shape/pt-sequence]
+                :db/cardinality :db.cardinality/many}])
+  (d/transact conn schema)
+  (d/transact conn
+              [{:shape/id 185
+                :shape/pt-lat 52.296719
+                :shape/pt-lon 13.631534
+                :shape/pt-sequence 0}])
+  (let [{a :a} {:a 1}] a)
+
+)

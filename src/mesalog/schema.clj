@@ -1,13 +1,13 @@
-(ns tablehike.schema
+(ns mesalog.schema
   (:require [clojure.set :as clj-set]
             [clojure.string :as string]
             [ham-fisted.reduce :as hamf-rf]
-            [tablehike.parse.parser :as parser]
-            [tablehike.parse.utils :as parse-utils]
-            [tablehike.read :as csv-read])
+            [mesalog.parse.parser :as parser]
+            [mesalog.parse.utils :as parse-utils]
+            [mesalog.read :as csv-read])
   (:import [clojure.lang Indexed]
            [java.util HashMap HashSet]
-           [tablehike.read TakeReducer]))
+           [mesalog.read TakeReducer]))
 
 
 (defn- map-col-idents->schema-dtypes [parsers]
