@@ -27,8 +27,8 @@ Much of the code in ~src/mesalog/parse~ is adapted from the library [[https://gi
 
 ** Quickstart
 
-[[https://clojars.org/io.replikativ/tablehike][[https://img.shields.io/clojars/v/io.replikativ/mesalog.svg]![Clojars Project]]]
-[[https://cljdoc.org/d/io.replikativ/tablehike][[https://cljdoc.org/badge/io.replikativ/mesalog]![cljdoc badge]]]
+[[https://clojars.org/io.replikativ/mesalog][https://img.shields.io/clojars/v/io.replikativ/mesalog.svg]]
+[[https://cljdoc.org/d/io.replikativ/mesalog][https://cljdoc.org/badge/io.replikativ/mesalog]]
 
 Reads, parses, and loads data from ~filename~ into a Datahike database via connection ~conn~. The remaining arguments are optional: parser descriptions, schema description, and options for other relevant specifications.
 
@@ -59,7 +59,8 @@ Where ~parser-descriptions~ can be:
 ;; or two-element tuples of database type identifier and parser function.
 ;; Example, referring to `data/stops-sample.csv`:
 {0 :db.type/string
- 4 :db.type/float ; 1. Would default to `:db.type/double` otherwise. 2. Maps to default parser for floats.
+ ; 1. Would default to `:db.type/double` otherwise. 2. Maps to default parser for floats.
+ 4 :db.type/float
  5 :db.type/float
  8 [:db.type/boolean #(identical? % 0)]}
 ;; or equivalently
@@ -89,10 +90,13 @@ And ~schema-description~ can be (again referring to the same sample data):
 ;; or
 []
 ;; or
-{:db/index #{:stop/name} ; `:stop/name` has a schema `:db/index` value of `true`
- :db.type/float #{:stop/lat :stop/lon} ; note: redundant / synonymous with parser specifications above
+{; `:stop/name` has a schema `:db/index` value of `true`
+ :db/index #{:stop/name}
+ ; note: redundant / synonymous with parser specifications above
+ :db.type/float #{:stop/lat :stop/lon}
  :db.unique/identity #{:stop/id}
- :db.type/ref {:stop/parent-station :stop/id}} ; parent-station attr references id attr
+ ; parent-station attr references id attr
+ :db.type/ref {:stop/parent-station :stop/id}}
 #+end_src
 
 And ~options~ can be:
@@ -205,7 +209,7 @@ Parser descriptions can be specified as:
   - Value: a parser description taking the form described above.
 - A vector specifying parsers for consecutive columns, starting from the 1st (though not necessarily ending at the last), with each element again being a parser description taking the form above, just like one given as a map value.
 
-See the section [[*Vector-valued columns]] for details on specifying parser descriptions for vector-valued columns.
+See the section [[Vector-valued columns]] for details on specifying parser descriptions for vector-valued columns.
 
 
 ** Schema description
@@ -236,7 +240,7 @@ Please see ~load-csv~ docstring for further detail.
 
 ** Schema-on-read
 
-Mesalog supports schema-on-read databases, though not thoroughly, as noted in [[*Current limitations]] below.
+Mesalog supports schema-on-read databases, though not thoroughly, as noted in [[Current limitations]] below.
 
 
 ** Cardinality inference
@@ -257,6 +261,7 @@ Examples above illustrate one way reference-type attributes can be represented i
 
 
 ** Vector-valued columns
+#+NAME: Vector-valued columns
 
 The parser description for a vector-valued column (whatever the ~:db/valueType~ of its corresponding attribute, if any) can be specified in one of a few ways:
 - ~[dtype parse-fn]~ (not supported for tuples)
@@ -274,7 +279,7 @@ Instead of being represented across columns as illustrated above, (homogeneous a
 1. Its specification as tuple, e.g. ~{:db.type/tuple {:abc [:a :b :c]}}~, can be dropped from the schema description.
 2. Its type and parser may be inferred or specified:
    - If ~:abc~ is a homogeneous tuple of uniform length, its type and parser can be automatically inferred.
-   - The parser description for ~"abc"~ can take one of the forms described above for [[*Vector-valued columns]], except ~[dtype parse-fn]~ as noted.
+   - The parser description for ~"abc"~ can take one of the forms described above for [[Vector-valued columns]], except ~[dtype parse-fn]~ as noted.
 
 Note: Type and parser can also be inferred for heterogeneous tuples, but they must have uniform length (regardless of type inference needs).
 
@@ -287,6 +292,7 @@ Supported options: ~:batch-size~, ~:num-rows~, ~:separator~, ~:parser-sample-siz
 See test namespaces and the ~mesalog.demo~ namespace for more examples.
 
 ** Current limitations
+#+NAME: Current limitations
 
 Many if not most of the remaining major limitations of Mesalog are due to the continuing (even if much decreased) presence of coupling between parsers and schema, and current lack of a clean separation and coherent interface between them. For example:
 - The parser descriptions argument to ~load-csv~ still requires column type specification, even when it is irrelevant because the connected database has schema-on-read.
