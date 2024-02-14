@@ -17,8 +17,10 @@ Loads CSV data into Datalog databases with (for now) a single function call.
 Please note that the API is not yet fully stable. Breaking changes may occur, though they will be communicated through the changelog and release notes.
 
 *** Presentations
-Note: substantial overlap in content, though the earlier talk is somewhat more conceptually comprehensive. \\
-[[https://docs.google.com/presentation/d/10mCViOX9Lkmxi8t0V7vnTLNIdoToPfVMZIUxW48onUQ/edit?usp=sharing][Clojure Berlin lightning talk, December 2023]] \\
+Note: substantial overlap in content, though the earlier talk is somewhat more conceptually comprehensive.
+
+[[https://docs.google.com/presentation/d/10mCViOX9Lkmxi8t0V7vnTLNIdoToPfVMZIUxW48onUQ/edit?usp=sharing][Clojure Berlin lightning talk, December 2023]]
+
 [[https://docs.google.com/presentation/d/1LotuOmUVs5bVAhMiCt8xHyQoI-CfsB2gCaYkPmvZx4k/edit?usp=sharing][Austin Clojure Meetup, November 2023]]
 
 
@@ -29,7 +31,7 @@ Much of the code in ~src/mesalog/parse~ is adapted from the library [[https://gi
 ** Quickstart
 
 [[https://clojars.org/io.replikativ/mesalog][https://img.shields.io/clojars/v/io.replikativ/mesalog.svg]]
-[[metosin/malli][https://cljdoc.org/badge/io.replikativ/mesalog]]
+[[https://cljdoc.org/d/io.replikativ/mesalog][https://cljdoc.org/badge/io.replikativ/mesalog]]
 
 Reads, parses, and loads data from ~filename~ into a Datahike database via connection ~conn~. The remaining arguments are optional: parser descriptions, schema description, and options for other relevant specifications.
 
