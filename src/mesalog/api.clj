@@ -1,4 +1,4 @@
-(ns mesalog.core
+(ns mesalog.api
   (:require [clojure.set :as clj-set]
             [datahike.api :as d]
             [mesalog.parse.parser :as parser]

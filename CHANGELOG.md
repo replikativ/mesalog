@@ -41,3 +41,8 @@
 
 ### Changed
 - Library name: from "tablehike" to "mesalog"
+
+## [0.2.232] - 2024-02-14
+
+### Changed
+- **BREAKING**: `core` namespace renamed to `api`.

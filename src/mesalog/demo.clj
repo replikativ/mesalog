@@ -3,7 +3,7 @@
             [clojure.java.shell :as sh]
             [criterium.core :as cr]
             [datahike.api :as d]
-            [mesalog.core :as m]
+            [mesalog.api :as m]
             [mesalog.read :as m-read]
             [mesalog.parse.datetime :as dt]
             [mesalog.parse.parser :as parser]
@@ -184,7 +184,7 @@
 
 ;;; Performance
 
-; Extracted from `core/load-csv` for demo purposes only
+; Extracted from `api/load-csv` for demo purposes only
 (defn- infer-parsers-and-schema
   [filename conn parsers-desc schema-desc options]
   (let [colname->ident (parser/colname->ident-fn options)

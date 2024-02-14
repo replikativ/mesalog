@@ -35,7 +35,7 @@ Reads, parses, and loads data from ~filename~ into a Datahike database via conne
 
 #+begin_src clojure
 (require '[datahike.api :as d]
-         '[mesalog.core :as m])
+         '[mesalog.api :as m])
 
 (def cfg (d/create-database))
 (def conn (d/connect cfg))

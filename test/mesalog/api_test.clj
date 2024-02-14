@@ -1,10 +1,10 @@
-(ns mesalog.core-test
+(ns mesalog.api-test
   (:require [clojure.java.io :as io]
             [clojure.set :as s]
             [clojure.string :as string]
             [clojure.test :refer [deftest testing is use-fixtures]]
             [datahike.api :as d]
-            [mesalog.core :refer :all]
+            [mesalog.api :refer :all]
             [mesalog.parse.parser :as parser]
             [mesalog.parse.utils :as utils]
             [tablecloth.api :as tc]
