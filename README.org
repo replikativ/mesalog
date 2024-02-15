@@ -29,7 +29,7 @@ Much of the code in ~src/mesalog/parse~ is adapted from the library [[https://gi
 ** Quickstart
 
 [[https://clojars.org/io.replikativ/mesalog][https://img.shields.io/clojars/v/io.replikativ/mesalog.svg]]
-[[https://cljdoc.org/d/io.replikativ/mesalog][https://badgen.net/badge/cljdoc/mesalog/blue]]
+#+HTML: <a href="https://cljdoc.org/d/io.replikativ/mesalog"><img src="https://cljdoc.org/badge/io.replikativ/mesalog"></a>
 
 Reads, parses, and loads data from ~filename~ into a Datahike database via connection ~conn~. The remaining arguments are optional: parser descriptions, schema description, and options for other relevant specifications.
 
