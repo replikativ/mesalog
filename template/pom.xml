@@ -4,7 +4,7 @@
   <groupId>io.replikativ</groupId>
   <artifactId>mesalog</artifactId>
   <name>io.replikativ/mesalog</name>
-  <description>CSV data loader for Datahike.</description>
+  <description>CSV data loader for Datalog databases.</description>
   <url>https://github.com/replikativ/mesalog</url>
   <licenses>
     <license>
