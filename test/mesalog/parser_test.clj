@@ -6,7 +6,8 @@
             [clojure.test :refer [deftest testing is]]
             [tablecloth.api :as tc]
             [mesalog.parse.parser :as parser])
-  (:import [java.util UUID]))
+  (:import [java.time Instant]
+           [java.util UUID]))
 
 
 (def ^:private data-folder "data")
@@ -58,22 +59,32 @@
                (get expected-col-dtypes (:column-name p))))))))
 
 
+(defn- gen-write-test-delete [type-str val-gen-fn nrows]
+  (let [test-fname (str type-str ".csv")
+        test-file (io/file test-fname)]
+    (-> (tc/dataset {(keyword type-str) (repeatedly nrows val-gen-fn)})
+        (tc/write! test-fname))
+    (try (let [parsers (parser/infer-parsers test-file)
+               parser (first parsers)]
+           (is (= (count parsers) 1))
+           (is (= (:column-name parser) type-str))
+           (is (= (:parser-dtype parser)
+                  (if (= type-str "instant")
+                    :instant
+                    (keyword "db.type" type-str))))
+           (is (= (count (set (:missing-indexes parser)))
+                  0)))
+         (finally (.delete test-file)))))
+
+
 (deftest uuid-inference
   (testing "UUID type inference"
-    (let [uuids (repeatedly 5 #(UUID/randomUUID))
-          test-fname "uuid.csv"
-          test-file (io/file test-fname)]
-      (-> {:uuids (repeatedly 5 #(UUID/randomUUID))}
-          tc/dataset
-          (tc/write! test-fname))
-      (try (let [parsers (parser/infer-parsers test-file)
-                 parser (first parsers)]
-             (is (= (count parsers) 1))
-             (is (= (:column-name parser) "uuids"))
-             (is (= (:parser-dtype parser) :db.type/uuid))
-             (is (= (count (set (:missing-indexes parser)))
-                    0)))
-           (finally (.delete test-file))))))
+    (gen-write-test-delete "uuid" #(UUID/randomUUID) 6)))
+
+
+(deftest instant-inference
+  (testing "Instant type inference"
+    (gen-write-test-delete "instant" #(Instant/now) 6)))
 
 
 (deftest parser-sample-size-and-num-rows

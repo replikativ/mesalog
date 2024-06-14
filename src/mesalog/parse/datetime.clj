@@ -111,12 +111,14 @@ parse a wide variety of local date formats."
 (defn- datetime->date [dt]
   (-> (if (instance? OffsetDateTime dt)
         (.toInstant ^OffsetDateTime dt)
-        (let [zone-id (ZoneId/systemDefault)
-              dt (condp instance? dt
-                   LocalDate      (.atStartOfDay ^LocalDate dt zone-id)
-                   LocalDateTime  (.atZone ^LocalDateTime dt zone-id)
-                   ZonedDateTime  dt)]
-          (.toInstant ^ZonedDateTime dt)))
+        (if (instance? Instant dt)
+          dt
+          (let [zone-id (ZoneId/systemDefault)
+                dt (condp instance? dt
+                     LocalDate      (.atStartOfDay ^LocalDate dt zone-id)
+                     LocalDateTime  (.atZone ^LocalDateTime dt zone-id)
+                     ZonedDateTime  dt)]
+            (.toInstant ^ZonedDateTime dt))))
       Date/from))
 
 
