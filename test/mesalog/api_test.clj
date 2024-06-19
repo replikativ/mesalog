@@ -402,9 +402,9 @@
 
 
 (deftest homogeneous-sequence-valued-columns
-  (testing (str "CSV column of homogeneous sequence values is transacted with cardinality many "
-                "and the expected value type, except when there exist multiple rows belonging "
-                "to the same entity")
+  (testing (str "CSV column of variable-length homogeneous sequence values is transacted with "
+                "cardinality many and the expected value type, except when there exist multiple rows "
+                "belonging to the same entity")
     (let [file (io/file data-folder "pokemon.csv")
           name-abilities (into {}
                                (map (fn [p]
