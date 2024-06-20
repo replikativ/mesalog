@@ -4,24 +4,24 @@
             [clojure.set :as clj-set]
             [clojure.string :as string]
             [clojure.test :refer [deftest testing is]]
+            [config :refer [data-dir]]
             [tablecloth.api :as tc]
             [mesalog.parse.parser :as parser])
   (:import [java.time Instant]
            [java.util UUID]))
 
 
-(def ^:private data-folder "data")
-(def ^:private booleans-file (io/file data-folder "boolean-or-not.csv"))
-(def ^:private agencies-file (io/file data-folder "agencies.csv"))
-(def ^:private shapes-file (io/file data-folder "shapes.csv"))
-(def ^:private shapes-modified-file (io/file data-folder "shapes-modified.csv"))
-(def ^:private stops-file (io/file data-folder "stops-sample.csv"))
-(def ^:private nyc-311-file (io/file data-folder "311-service-requests-sample.csv"))
+(def ^:private booleans-file (io/file data-dir "boolean-or-not.csv"))
+(def ^:private agencies-file (io/file data-dir "agencies.csv"))
+(def ^:private shapes-file (io/file data-dir "shapes.csv"))
+(def ^:private shapes-modified-file (io/file data-dir "shapes-modified.csv"))
+(def ^:private stops-file (io/file data-dir "stops-sample.csv"))
+(def ^:private nyc-311-file (io/file data-dir "311-service-requests-sample.csv"))
 
 
 (deftest empty-file
   (testing "parser inference on empty input CSV"
-    (is (-> (parser/infer-parsers (io/file data-folder "empty.csv"))
+    (is (-> (parser/infer-parsers (io/file data-dir "empty.csv"))
             count
             (= 0)))))
 
@@ -166,7 +166,7 @@
 
 
 (deftest missing-col-dtype-and-fn
-  (let [parsers (parser/infer-parsers (io/file data-folder "routes.csv"))
+  (let [parsers (parser/infer-parsers (io/file data-dir "routes.csv"))
         empty-cols #{3 5 6 7}
         nonempty-cols (-> (set (range (count parsers)))
                           (clj-set/difference empty-cols))]
@@ -349,7 +349,7 @@
 (deftest no-header-row
   (testing "Parser inference works without header row"
     (let [options {:header-row? false}
-          parsers (-> (io/file data-folder "routes-no-header.csv")
+          parsers (-> (io/file data-dir "routes-no-header.csv")
                       (parser/infer-parsers {} options))
           idx->colname (parser/col-idx->col-name-default-fn {})
           expected-dtypes {0 :db.type/string

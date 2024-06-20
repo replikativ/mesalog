@@ -3,6 +3,7 @@
             [clojure.set :as s]
             [clojure.string :as string]
             [clojure.test :refer [deftest testing is use-fixtures]]
+            [config :refer [data-dir]]
             [datahike.api :as d]
             [mesalog.api :refer :all]
             [mesalog.parse.parser :as parser]
@@ -29,10 +30,9 @@
   (tc/dataset file {:key-fn keyword}))
 
 
-(def ^:private data-folder "data")
-(def ^:private agencies-file (io/file data-folder "agencies.csv"))
-(def ^:private routes-file (io/file data-folder "routes.csv"))
-(def ^:private shapes-file (io/file data-folder "shapes.csv"))
+(def ^:private agencies-file (io/file data-dir "agencies.csv"))
+(def ^:private routes-file (io/file data-dir "routes.csv"))
+(def ^:private shapes-file (io/file data-dir "shapes.csv"))
 
 
 ; Questionable or nonsensical schema designs sometimes used for testing purposes only
@@ -69,7 +69,7 @@
 
 (deftest empty-input
   (testing "empty CSV file"
-    (is (-> (io/file data-folder "empty.csv")
+    (is (-> (io/file data-dir "empty.csv")
             (load-csv test-conn)
             d/schema
             (= {})))))
@@ -171,7 +171,7 @@
 (deftest boolean-value-types
   (testing (str "columns with values meeting and not meeting boolean parsing criteria "
                 "are correctly reflected in schema")
-    (load-csv (io/file data-folder "boolean-or-not.csv") test-conn)
+    (load-csv (io/file data-dir "boolean-or-not.csv") test-conn)
     (let [schema (d/schema @test-conn)]
       (doseq [col [:char :word]]
         (is (->> (:db/valueType (col schema))
@@ -213,7 +213,7 @@
 
 (deftest string-type
   (testing "columns with string values are correctly reflected in schema"
-    (test-attr-value-types-with-file (io/file data-folder "levels.csv"))))
+    (test-attr-value-types-with-file (io/file data-dir "levels.csv"))))
 
 
 (deftest uuids
@@ -281,7 +281,7 @@
 
 (deftest references-to-existing-entities
   (testing "Attributes referencing existing entities are correctly reflected in schema and loaded"
-    (let [trips-file (io/file data-folder "trips.csv")
+    (let [trips-file (io/file data-dir "trips.csv")
           trips (tc-dataset trips-file)
           trip->route-id (into {}
                                (map (fn [t]
@@ -405,7 +405,7 @@
   (testing (str "CSV column of variable-length homogeneous sequence values is transacted with "
                 "cardinality many and the expected value type, except when there exist multiple rows "
                 "belonging to the same entity")
-    (let [file (io/file data-folder "pokemon.csv")
+    (let [file (io/file data-dir "pokemon.csv")
           name-abilities (into {}
                                (map (fn [p]
                                       (let [a (:abilities p)

@@ -14,7 +14,7 @@
                               io.replikativ/datahike-jdbc {:mvn/version "0.3.47"}
                               techascent/tech.ml.dataset {:mvn/version "7.023"}}}
 
-           :test {:extra-paths ["test"]
+           :test {:extra-paths ["test" "dev"]
                   :extra-deps {lambdaisland/kaocha              {:mvn/version "1.64.1010"}
                                lambdaisland/kaocha-junit-xml    {:mvn/version "1.17.101"}
                                scicloj/tablecloth               {:mvn/version "7.021"}}}
