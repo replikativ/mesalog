@@ -36,4 +36,6 @@
                           babashka/babashka.curl {:mvn/version "0.1.2"}
                           babashka/fs {:mvn/version "0.1.6"}
                           cheshire/cheshire {:mvn/version "5.11.0"}}
-                   :ns-default build}}}
+                   :ns-default build}
+
+           :demo {:extra-paths ["dev"]}}}

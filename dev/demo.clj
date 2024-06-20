@@ -1,6 +1,7 @@
-(ns ^:no-doc mesalog.demo
+(ns demo
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as sh]
+            [config :refer [data-dir]]
             [criterium.core :as cr]
             [datahike.api :as d]
             [mesalog.api :as m]
@@ -15,8 +16,6 @@
 ;; Note:
 ;; 1. Try in `dev` mode so that `criterium` is available
 ;; 2. API NOT STABLE
-
-(def ^:private data-dir "data")
 
 (def ^:private cfg (atom nil))
 
