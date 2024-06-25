@@ -356,7 +356,7 @@
   (testing "Cardinality when cardinality and unique attributes are not specified"
     (let [latlon [:shape/pt-lat :shape/pt-lon]]
       (->> {:db.type/compositeTuple {:shape/coordinates latlon}}
-           (load-csv shapes-file test-conn))
+           (load-csv shapes-file test-conn {}))
       (is (every? #(= (:db/cardinality %)
                       :db.cardinality/one)
                   (vals (d/schema @test-conn)))))))
@@ -446,3 +446,10 @@
       (let [schema (:col (d/schema @test-conn))]
         (is (= (:db/valueType schema) :db.type/tuple))
         (is (= (:db/tupleTypes schema) [:db.type/string :db.type/long]))))))
+
+
+(comment
+  (require '[clojure.test :refer [run-tests test-vars]])
+
+  (test-vars [#'default-cardinality])
+)
