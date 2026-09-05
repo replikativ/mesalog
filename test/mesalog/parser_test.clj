@@ -4,7 +4,7 @@
             [clojure.set :as clj-set]
             [clojure.string :as string]
             [clojure.test :refer [deftest testing is]]
-            [config :refer [data-dir]]
+            [mesalog.config :refer [data-dir]]
             [tablecloth.api :as tc]
             [mesalog.parse.parser :as parser])
   (:import [java.time Instant]

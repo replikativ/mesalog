@@ -1,3 +1,3 @@
-(ns config)
+(ns mesalog.config)
 
 (def data-dir "data")

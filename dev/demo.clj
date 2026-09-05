@@ -1,10 +1,10 @@
 (ns demo
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as sh]
-            [config :refer [data-dir]]
             [criterium.core :as cr]
             [datahike.api :as d]
             [mesalog.api :as m]
+            [mesalog.config :refer [data-dir]]
             [mesalog.read :as m-read]
             [mesalog.parse.datetime :as dt]
             [mesalog.parse.parser :as parser]
