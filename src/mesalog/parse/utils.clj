@@ -26,12 +26,15 @@
        (apply = v)))
 
 
+(defn map-parser-key-vals [parsers k1 k2]
+  (into {}
+        (map (juxt k1 k2))
+        parsers))
+
+
 ;; TODO revisit: stopgap in lieu of proper interface between DB attr idents and col names
 (defn map-col-idents->indices [parsers]
-  (into {}
-        (map (fn [{:keys [column-idx column-ident]}]
-               [column-ident column-idx]))
-        parsers))
+  (map-parser-key-vals parsers :column-ident :column-idx))
 
 
 ;; TODO revisit: stopgap in lieu of proper interface between DB attr idents and col names
