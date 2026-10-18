@@ -15,19 +15,52 @@
   (:import [java.math BigDecimal RoundingMode]))
 
 
+(def benchmarkable-fns
+  #{#'mlapi/load-csv})
+
+(def ^:private benchmarkable-fns-str
+  (->> (map #(subs (str %) 2) benchmarkable-fns)
+       (string/join ", ")))
+
 (def cli-options
-  [["-b" "--batching" "Include benchmark with batching (using default of 128,000 rows)"]
-   ["-f" "--file FILE" "File path where benchmark results should be written"]
+  [["-f" "--function FUNCTION"
+    (str "Function to benchmark. Must be one of: " benchmarkable-fns-str)
+    :parse-fn (fn [s]
+                (some-> s symbol resolve))
+    :validate [#(contains? benchmarkable-fns %)
+               (str "Must be one of: " benchmarkable-fns-str)]]
+   ["-d" "--data-file FILE" "Data file to benchmark (repeatable)"
+    :multi true
+    :default (flos/ordered-set)
+    :update-fn conj]
+   ["-b" "--batching" "Include large benchmark file with batching (using default of 128,000 rows)"]
+   ["-o" "--output FILE" "File path to which benchmark results should be written"]
    ["-h" "--help" "Show help"]])
 
-(def data-files ["boolean-or-not.csv" "levels.csv" "calendar-dates.csv"
-                 "pokemon.csv" "trips.csv" "stops.csv"])
+(def larger-data-filename "stops.csv")
 
-(def larger-data-files #{"stops.csv" "311-service-requests-sample-300k.csv"})
+(def data-filenames
+  (into (flos/ordered-set)
+        ["boolean-or-not.csv" "levels.csv" "calendar-dates.csv"
+         "pokemon.csv" "trips.csv" larger-data-filename]))
 
-(defn- all-benchmarking-files [include-batching]
-  (cond-> data-files
-    include-batching (conj "311-service-requests-sample-300k.csv")))
+(def batching-data-filename "311-service-requests-sample-300k.csv")
+
+(def larger-data-files #{"stops.csv" batching-data-filename})
+
+(def all-data-filenames
+  (conj data-filenames batching-data-filename))
+
+(defn- select-data-files [cli-data-files batching?]
+  (let [files (if (empty? cli-data-files)
+                data-filenames
+                (-> (conj data-filenames batching-data-filename)
+                    (set/intersection cli-data-files)))]
+    (cond-> files
+      batching? (conj batching-data-filename))))
+
+(defn- file-path [filename]
+  (io/file data-dir filename))
 
 ;; Needs updating if `:tail-quantile` default value of 0.025 changes
 (def ^:private tail-percentile 2.5)
@@ -37,20 +70,35 @@
 (def ^:private core-output-col-keys
   [:commit-hash :data-filename :mean :variance :lower-q :upper-q :sample-count])
 
+;; mean, variance, lower & upper quantiles, outlier count, outlier variance
 (def ^:private output-col-keys
-  (let [core-keys-vec (into [] core-output-col-keys)]
-    (vec (concat (subvec core-keys-vec 0 1)
-                 [:timestamp :function]
-                 (subvec core-keys-vec 1)
-                 (map (fn [adj] [:outliers adj])
-                      [:low-severe :low-mild :high-mild :high-severe])
-                 [:outlier-variance]))))
+  (vec (concat (subvec core-output-col-keys 0 1)
+               [:timestamp :function]
+               (subvec core-output-col-keys 1)
+               (map (fn [adj] [:outliers adj])
+                    [:low-severe :low-mild :high-mild :high-severe])
+               [:outlier-variance]
+               (map (fn [d] [:os-details d])
+                    [:arch :available-processors :name :version])
+               (map (fn [d] [:runtime-details d])
+                    [:vm-name :vm-version :java-version :clojure-version-string]))))
+
+(defn- vector-output-col-key->str [k1 k2]
+  (case k1
+    :outliers (str (name k2) " outliers")
+    :os-details (case k2
+                  :arch "architecture"
+                  :available-processors "available processors"
+                  (str "OS " (name k2)))
+    :runtime-details (let [[t1 t2 t3] (string/split (name k2) #"-")]
+                       (case t1
+                         "vm" (str "JVM " t2)
+                         (str (string/capitalize t1) " version")))))
 
 (defn- output-col-key->str [k]
   (let [keyword->string #(string/replace (name %) "-" " ")]
     (cond
-      (vector? k) (-> (name (nth k 1))
-                      (str " outliers"))
+      (vector? k) (apply vector-output-col-key->str k)
       (= :lower-q k) (str tail-percentile "th percentile")
       (= :upper-q k) (str (- 100 tail-percentile)
                           "th percentile")
@@ -69,9 +117,6 @@
 (defn- round-to-precision [v precision]
   (let [bd (BigDecimal. (str v))]
     (.setScale bd precision RoundingMode/HALF_UP)))
-
-(defn- data-file [filename]
-  (io/file data-dir filename))
 
 (defn- csv->header-row [input]
   (let [row-iter ^Iterator (mlread/csv->row-iter input {})]
@@ -112,65 +157,86 @@
                         {:min core-output-header-cols
                          :actual header}))))))
 
-(defn- run-benchmark
-  ([data-file-path outfile f f-invocation bench-f-sym]
-   (let [{:keys [out err exit]} (sh/sh "git" "rev-parse" "HEAD")]
-     (when (not (zero? exit))
-       (throw (Exception. (str "Error getting commit hash: " err))))
-     (let [stats (cr/with-progress-reporting
-                   ((case bench-f-sym
-                      :full cr/benchmark*
-                      :quick cr/quick-benchmark*)
-                    f {}))]
-       (with-open [w (io/writer outfile :append true)]
-         (->> [(into [(subs (string/trim out) 0 8)
-                      (.toString (java.time.Instant/now))
-                      f-invocation
-                      data-file-path]
-                     (map (fn [k]
-                            (if (vector? k)
-                              (get-in stats k)
-                              (let [stat (stats k)]
-                                (cond
-                                  (point-estimate-stats k) (-> (nth stat 0)
-                                                               (round-to-precision 8))
-                                  (= :sample-count k) stat
-                                  :else (-> (* 100 stat)
-                                            (round-to-precision 2))))))
-                          (subvec output-col-keys 4)))]
-              (charred/write-csv w))))))
-  ([data-file-path outfile f f-invocation]
-   (run-benchmark data-file-path outfile f f-invocation :full)))
+(defn large-benchmark
+  "Adapted from `criterium/benchmark*` and `criterium/run-benchmark`"
+  [sample-count n-exec f gc-before-sample overhead]
+  (cr/force-gc)
+  (let [rt (Runtime/getRuntime)
+        total-overhead (long (* (or overhead 0) 1e9 n-exec))
+        _   (cr/progress "Sampling ...")
+        _   (cr/debug
+             "Running with\n sample-count" sample-count \newline
+             "exec-count" n-exec \newline
+             "overhead[s]" overhead \newline
+             "total-overhead[ns]" total-overhead)
+        final-gc-time (cr/final-gc)
+        samples (cr/collect-samples sample-count n-exec f gc-before-sample)
+        sample-times (->> samples
+                          (map first)
+                          (map #(- % total-overhead)))
+        total (reduce + 0 sample-times)
+        final-gc-result (cr/final-gc-warn total final-gc-time)]
+    (cr/benchmark-stats {:execution-count n-exec
+                         :sample-count sample-count
+                         :samples sample-times
+                         :results (map second samples)
+                         :total-time (/ total 1e9)
+                         :final-gc-time final-gc-time
+                         :overhead overhead}
+                        (select-keys cr/*default-quick-bench-opts*
+                                     [:tail-quantile :bootstrap-size]))))
 
 ;; mean, variance, lower & upper quantiles, outlier count, outlier variance
-(defn benchmark-load-csv
-  ([outfile include-batching]
-   (let [io-outfile (io/file outfile)
-         data-files (all-benchmarking-files include-batching)]
-     (if (or (not (.exists io-outfile))
-             (zero? (.length io-outfile)))
-       (write-header outfile)
-       (ensure-current-output-format outfile))
-     (doseq [data-f data-files]
-       (let [bench-fn (partial run-benchmark
-                               data-f
-                               outfile
-                               (fn []
-                                 (let [cfg (d/create-database {})
-                                       conn (d/connect cfg)]
-                                   (try
-                                     (mlapi/load-csv (data-file data-f) conn)
-                                     (finally
-                                       (d/delete-database cfg)))))
-                               '(mlapi/load-csv (data-file data-f) conn))]
-         (if (contains? larger-data-files data-f)
-           (bench-fn :quick)
-           (bench-fn))))))
-  ([outfile]
-   (benchmark-load-csv outfile false)))
+(defn- run-benchmark
+  [expr-fn expr-form data-file-path outfile]
+  (let [{:keys [out err exit]} (sh/sh "git" "rev-parse" "HEAD")]
+    (println data-file-path)
+    (when (not (zero? exit))
+      (throw (Exception. (str "Error getting commit hash: " err))))
+    (let [benchmark-fn (fn []
+                         (if (= batching-data-filename data-file-path)
+                           (large-benchmark 6 1 expr-fn true nil)
+                           (cr/benchmark*
+                            expr-fn
+                            (if (= larger-data-filename data-file-path)
+                              cr/*default-quick-bench-opts*
+                              {}))))
+          stats (cr/with-progress-reporting (benchmark-fn))]
+      (with-open [w (io/writer outfile :append true)]
+        (->> [(into [(subs (string/trim out) 0 8)
+                     (.toString (java.time.Instant/now))
+                     expr-form
+                     data-file-path]
+                    (map (fn [k]
+                           (if (vector? k)
+                             (get-in stats k)
+                             (let [stat (stats k)]
+                               (cond
+                                 (point-estimate-stats k) (-> (nth stat 0)
+                                                              (round-to-precision 8))
+                                 (= :sample-count k) stat
+                                 :else (-> (* 100 stat)
+                                           (round-to-precision 2))))))
+                         (subvec output-col-keys 4)))]
+             (charred/write-csv w))))))
+
+(defn run-benchmarks
+  [expr-fn expr-form data-files outfile]
+  (let [io-outfile (io/file outfile)]
+    (println data-files)
+    (if (or (not (.exists io-outfile))
+            (zero? (.length io-outfile)))
+      (write-header outfile)
+      (ensure-current-output-format outfile))
+    (doseq [data-f data-files]
+      (run-benchmark (expr-fn data-f)
+                     (expr-form data-f)
+                     data-f
+                     outfile))))
 
 (defn usage [summary]
-  (str "Usage: clj -M:dev -m benchmark [options]\n" "Options:\n" summary))
+  (str "Usage: clj -M:dev -m benchmark [options]\n"
+       "Options:\n" summary "\n"))
 
 (defn error-message [errors]
   (str "The following errors occurred while parsing your command:\n"
@@ -186,12 +252,36 @@
       errors {:exit-message (error-message errors)}
       (:help options) {:exit-message (usage summary)
                        :ok? true}
-      (:file options) (conj {:output-file (:file options)}
-                            {:batching? (:batching options)})
+      (:output options) {:function (:function options)
+                         :data-files (:data-file options)
+                         :batching? (:batching options)
+                         :output-file (:output options)}
       :else {:exit-message (usage summary)})))
 
+; Note: `nil` return value advisable because `mutable-place` in Criterium
+; holds a reference to the return value of the benchmarked expression, and garbage collection
+; seems to be delayed, causing a heap memory error if a large value is returned instead.
+(def benchmark-fn-exprs-and-forms
+  {#'mlapi/load-csv
+   {:expr-fn (fn [data-file]
+               (fn []
+                 (let [cfg (d/create-database {})
+                       conn (d/connect cfg)]
+                   (try
+                     (mlapi/load-csv (file-path data-file) conn)
+                     (finally
+                       (d/delete-database cfg))))
+                 nil))
+    :expr-form (fn [data-file]
+                 (list 'api/load-csv
+                       (list 'file-path (symbol data-file))
+                       'conn))}})
+
 (defn -main [& args]
-  (let [{:keys [exit-message ok? output-file batching?]} (summarise-opts args)]
+  (let [{:keys [exit-message ok? function data-files batching? output-file] :as summary}
+        (summarise-opts args)]
     (if exit-message
       (exit (if ok? 0 1) exit-message)
-      (benchmark-load-csv output-file batching?))))
+      (let [{:keys [expr-fn expr-form]} (benchmark-fn-exprs-and-forms function)
+            data-files (select-data-files data-files batching?)]
+        (run-benchmarks expr-fn expr-form data-files output-file)))))
